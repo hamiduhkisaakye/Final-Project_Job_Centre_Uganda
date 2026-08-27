@@ -108,7 +108,7 @@ export default async function HomePage() {
           unsticking the moment the hero scrolls out of view. */}
       <div className="sticky top-[72px] z-20 bg-white border-b border-border shadow-1">
         <div className="max-w-[1320px] mx-auto px-6 py-3">
-          <form action="/jobs" className="bg-white rounded border border-border flex flex-col md:flex-row items-stretch max-w-[820px] overflow-hidden">
+          <form action="/jobs" className="bg-white rounded border border-border flex flex-col md:flex-row items-stretch max-w-[820px] mx-auto overflow-hidden">
             <input
               name="q"
               placeholder="Job title, skill or company"
