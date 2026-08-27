@@ -1,6 +1,8 @@
 import { Injectable, NotFoundException } from '@nestjs/common';
 import slugify from 'slugify';
+import sanitizeHtml from 'sanitize-html';
 import { PrismaService } from '../prisma/prisma.service';
+import { BLOG_SANITIZE_OPTIONS } from './sanitize-options';
 
 interface BlogPostInput {
   title: string;
@@ -16,7 +18,7 @@ export class BlogService {
   async create(authorId: string, dto: BlogPostInput) {
     const slug = await this.uniqueSlug(dto.title);
     return this.prisma.blogPost.create({
-      data: { ...dto, slug, authorId },
+      data: { ...dto, content: sanitizeHtml(dto.content, BLOG_SANITIZE_OPTIONS), slug, authorId },
     });
   }
 
@@ -35,7 +37,10 @@ export class BlogService {
 
   async update(id: string, dto: Partial<BlogPostInput>) {
     await this.getByIdForAdmin(id);
-    return this.prisma.blogPost.update({ where: { id }, data: dto });
+    return this.prisma.blogPost.update({
+      where: { id },
+      data: { ...dto, content: dto.content !== undefined ? sanitizeHtml(dto.content, BLOG_SANITIZE_OPTIONS) : undefined },
+    });
   }
 
   async publish(id: string) {

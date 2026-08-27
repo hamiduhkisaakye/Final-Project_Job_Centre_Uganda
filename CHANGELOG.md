@@ -11,6 +11,103 @@ changes, revert by restoring the described prior structure.
 
 ---
 
+## 2026-08-27 — Career Advice rename, WYSIWYG editor, AI enhancement, latest-post widget, sample posts, About/Contact pages
+
+Confirmed via `AskUserQuestion`: rename Blog → Career Advice (URL included,
+frontend routes only — backend stays `/blog`/`/admin/blog`/`BlogPost`
+internally, a deliberate choice since those are never user-facing); TipTap
+for the WYSIWYG editor (new dependency, reversing Phase 4's "no new
+dependency" stance by explicit request); AI enhancement reuses the existing
+optional `OPENAI_API_KEY` pattern; Contact form is real and persists to a DB
+inbox.
+
+**New dependencies**: `apps/web` — `@tiptap/react`, `@tiptap/pm`,
+`@tiptap/starter-kit`, `@tiptap/extension-image`, `@tiptap/extension-link`
+(v3.30.5). `apps/api` — `sanitize-html` + `@types/sanitize-html`.
+
+**Rename**: `apps/web/src/app/blog/` → `apps/web/src/app/career-advice/`,
+`apps/web/src/app/admin/blog/` → `apps/web/src/app/admin/career-advice/`
+(old folders deleted). Every internal link updated
+(`PublicNavbar.tsx`, `Footer.tsx`, `admin/layout.tsx`, the new homepage
+widget). `PublicNavbar.tsx`'s `NAV_LINKS` also gained "About" and "Contact".
+
+**WYSIWYG**: `BlogPost.content`'s *meaning* changed from
+plain-text-with-blank-line-paragraphs to sanitized HTML (no schema/column
+type change — still `String`). New `apps/api/src/blog/sanitize-options.ts`
+(shared tag allow-list: h2/h3/p/strong/em/ul/ol/li/a/img/br), applied in
+`blog.service.ts#create`/`update` and by `blog-ai.service.ts` on AI output.
+New `apps/web/src/components/BlogEditor.tsx` (TipTap `useEditor` +
+toolbar — Bold/Italic/H2/H3/lists/link/image; inline images upload through
+the same `/uploads/blog-cover` endpoint from Phase 4, inserted as absolute
+`API_ORIGIN`-prefixed URLs since the stored HTML has no render-time
+opportunity to rewrite `src`). New `apps/web/src/components/BlogPostPreview.tsx`
+(shared read-only renderer — admin "Preview" toggle, the AI-suggestion
+panel, and the actual public `career-advice/[slug]` page all use it, so all
+three always look identical). New `.blog-content` CSS block in
+`globals.css` (hand-written prose styling, not `@tailwindcss/typography`).
+
+**AI enhancement**: `POST /admin/blog/enhance` (stateless — works on an
+unsaved draft), new `apps/api/src/blog/blog-ai.service.ts` mirroring
+`embeddings.service.ts`'s exact posture (raw `fetch`, no `openai` package,
+`enabled` getter on `OPENAI_API_KEY`) but throwing a clear
+`BadRequestException` when disabled rather than silently no-opping, since
+this is a direct user action awaiting a response. Model `gpt-4o-mini`,
+`response_format: json_object`. Frontend: "✨ Enhance with AI" button in the
+admin editor shows the suggestion in a review panel (via
+`BlogPostPreview`) with **Apply**/**Discard** — nothing overwrites the live
+draft until Apply is clicked.
+
+**Sample content**: 5 published Career Advice posts seeded via authenticated
+REST calls (CV tips, interview prep, salary negotiation, LinkedIn presence,
+career change), each with real HTML (headings/lists/bold/emphasis). Cover
+images are existing stock photos from `apps/web/public/` copied into
+`apps/api/storage/blog/` (so `coverImageUrl` rendering — always
+`API_ORIGIN`-prefixed — needed no special-casing). One previously-unused
+source photo (`apps/web/assets/pexels-rdne-7414023.jpg`) was copied to
+`apps/web/public/salary-negotiation-uganda.jpg` for this purpose.
+
+**Latest-post widget**: `blog.controller.ts#listPublished` gained an
+optional `?take=` query param; homepage (`apps/web/src/app/page.tsx`) fetches
+`/blog?take=1` and renders a "Latest from the team" section (between "For
+Employers" and "Get Hired") — renders nothing if there are no published
+posts.
+
+**About/Contact**: new `ContactMessage` model + migration
+(`20260827180000_contact_messages`), new `apps/api/src/contact/` module
+(`POST /contact` public, `GET`/`PATCH .../read` under `/admin/contact-messages`
+ADMIN-gated). New public pages `apps/web/src/app/about/page.tsx` (mission,
+live stats from existing `/companies`+`/jobs` fetches, values grid, stock
+photo, CTA) and `apps/web/src/app/contact/page.tsx` (real form via
+`apiFetch` directly — no auth token needed, intentionally public). New
+`apps/web/src/app/admin/contact-messages/page.tsx` inbox (master-detail,
+mark-read-on-select). `admin/layout.tsx` gained a new "Inbox" sidebar group.
+`Footer.tsx`'s column grid widened from a 3-track to a 4-track layout for a
+new "Company" links column (About/Career Advice/Contact).
+
+**Verified**: both apps typecheck/build clean; hit the same
+`tsconfig.tsbuildinfo` incremental-cache bug on the API rebuild as every
+previous rebuild this session (same fix — clear cache, rebuild); full REST
+smoke test (draft→publish→list→detail, contact submit→inbox→mark-read,
+`?take=1`); AI enhancement endpoint correctly returns a clean 400 rather
+than a 500 — this environment's `OPENAI_API_KEY` is set but the account has
+no remaining credits (`insufficient_quota` from OpenAI), so the graceful
+best-effort error path was exercised for real, just not a successful
+generation.
+
+**To revert:** restore `apps/web/src/app/blog/`+`apps/web/src/app/admin/blog/`
+from git history and delete the `career-advice` folders; drop the
+`ContactMessage` table/migration; delete `apps/api/src/contact/`,
+`apps/api/src/blog/blog-ai.service.ts`, `apps/api/src/blog/sanitize-options.ts`;
+remove `BlogAiService`/sanitize-html calls from `blog.service.ts`/
+`blog.controller.ts`; delete `apps/web/src/components/BlogEditor.tsx`,
+`BlogPostPreview.tsx`; `npm uninstall` the TipTap packages and
+`sanitize-html`; revert `PublicNavbar.tsx`/`Footer.tsx`/`admin/layout.tsx`/
+`page.tsx` (homepage) to their pre-rename state; delete
+`apps/web/src/app/about/`, `apps/web/src/app/contact/`,
+`apps/web/src/app/admin/contact-messages/`.
+
+---
+
 ## 2026-08-27 — Phase 4: admin-authored CMS/blog
 
 Per the confirmed scope (billing/credits/boosts explicitly skipped —

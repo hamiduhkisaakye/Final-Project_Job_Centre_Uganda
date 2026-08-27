@@ -67,4 +67,36 @@ a {
   .pill {
     @apply rounded-full px-3 py-1.5 text-xs font-semibold;
   }
+
+  /* Rendered career-advice post body — the exact tag set sanitize-html
+     allows server-side (h2/h3/p/strong/em/ul/ol/li/a/img/br) and nothing
+     else. Hand-rolled instead of @tailwindcss/typography to match this
+     app's existing design tokens rather than a generic default look. */
+  .blog-content {
+    @apply text-ink leading-relaxed;
+  }
+  .blog-content h2 {
+    @apply text-xl font-bold text-ink mt-7 mb-3;
+  }
+  .blog-content h3 {
+    @apply text-lg font-semibold text-ink mt-6 mb-2.5;
+  }
+  .blog-content p {
+    @apply mb-4;
+  }
+  .blog-content ul {
+    @apply list-disc pl-6 mb-4 flex flex-col gap-1.5;
+  }
+  .blog-content ol {
+    @apply list-decimal pl-6 mb-4 flex flex-col gap-1.5;
+  }
+  .blog-content a {
+    @apply text-primary font-semibold underline;
+  }
+  .blog-content img {
+    @apply rounded-card w-full h-auto my-5;
+  }
+  .blog-content strong {
+    @apply font-semibold;
+  }
 }

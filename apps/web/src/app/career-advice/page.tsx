@@ -6,11 +6,11 @@ import type { BlogPost } from '@/lib/types';
 
 function teaser(post: BlogPost) {
   if (post.excerpt) return post.excerpt;
-  const text = post.content.trim();
+  const text = post.content.replace(/<[^>]+>/g, ' ').replace(/\s+/g, ' ').trim();
   return text.length > 160 ? `${text.slice(0, 160)}…` : text;
 }
 
-export default async function BlogIndexPage() {
+export default async function CareerAdviceIndexPage() {
   const posts = (await publicFetch<BlogPost[]>('/blog')) || [];
 
   return (
@@ -19,8 +19,8 @@ export default async function BlogIndexPage() {
 
       <div className="bg-ground border-b border-border">
         <div className="max-w-[1320px] mx-auto px-6 py-10">
-          <h1 className="text-3xl font-bold mb-2">From the Job Centre Uganda blog</h1>
-          <p className="text-muted">Hiring tips, career advice, and updates from the team.</p>
+          <h1 className="text-3xl font-bold mb-2">Career Advice</h1>
+          <p className="text-muted">Hiring tips, interview prep, and career guidance from the Job Centre Uganda team.</p>
         </div>
       </div>
 
@@ -32,7 +32,7 @@ export default async function BlogIndexPage() {
             {posts.map((post) => (
               <Link
                 key={post.id}
-                href={`/blog/${post.slug}`}
+                href={`/career-advice/${post.slug}`}
                 className="card overflow-hidden flex flex-col hover:shadow-2 hover:border-primary transition-all hover:-translate-y-0.5"
               >
                 {post.coverImageUrl ? (

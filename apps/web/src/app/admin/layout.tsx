@@ -20,7 +20,11 @@ const GROUPS = [
   },
   {
     label: 'Content',
-    items: [{ href: '/admin/blog', label: 'Blog' }],
+    items: [{ href: '/admin/career-advice', label: 'Career Advice' }],
+  },
+  {
+    label: 'Inbox',
+    items: [{ href: '/admin/contact-messages', label: 'Contact Messages' }],
   },
 ];
 

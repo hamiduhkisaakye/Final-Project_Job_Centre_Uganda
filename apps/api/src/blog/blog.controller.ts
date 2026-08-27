@@ -1,7 +1,9 @@
-import { Body, Controller, Delete, Get, Param, Patch, Post, UseGuards } from '@nestjs/common';
+import { Body, Controller, Delete, Get, Param, Patch, Post, Query, UseGuards } from '@nestjs/common';
 import { BlogService } from './blog.service';
+import { BlogAiService, EnhanceBlogPostInput } from './blog-ai.service';
 import { CreateBlogPostDto } from './dto/create-blog-post.dto';
 import { UpdateBlogPostDto } from './dto/update-blog-post.dto';
+import { EnhanceBlogPostDto } from './dto/enhance-blog-post.dto';
 import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard';
 import { RolesGuard } from '../auth/guards/roles.guard';
 import { Roles } from '../auth/decorators/roles.decorator';
@@ -9,12 +11,16 @@ import { CurrentUser, JwtUser } from '../auth/decorators/current-user.decorator'
 
 @Controller()
 export class BlogController {
-  constructor(private blog: BlogService) {}
+  constructor(
+    private blog: BlogService,
+    private blogAi: BlogAiService,
+  ) {}
 
   // Public — no guard.
   @Get('blog')
-  listPublished() {
-    return this.blog.listPublished();
+  listPublished(@Query('take') take?: string) {
+    const parsed = take ? Number(take) : undefined;
+    return this.blog.listPublished(parsed && parsed > 0 ? parsed : undefined);
   }
 
   @Get('blog/:slug')
@@ -70,5 +76,15 @@ export class BlogController {
   @Roles('ADMIN')
   remove(@Param('id') id: string) {
     return this.blog.remove(id);
+  }
+
+  // Stateless — takes the current draft (saved or not) and returns a
+  // suggested rewrite for the admin to review, never writes to the DB
+  // itself.
+  @Post('admin/blog/enhance')
+  @UseGuards(JwtAuthGuard, RolesGuard)
+  @Roles('ADMIN')
+  enhance(@Body() dto: EnhanceBlogPostDto): Promise<EnhanceBlogPostInput> {
+    return this.blogAi.enhance(dto);
   }
 }

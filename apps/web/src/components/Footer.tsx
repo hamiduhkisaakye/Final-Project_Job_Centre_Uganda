@@ -18,12 +18,20 @@ const COLUMNS: { heading: string; links: { label: string; href: string }[] }[] =
       { label: 'Sign in', href: '/login' },
     ],
   },
+  {
+    heading: 'Company',
+    links: [
+      { label: 'About us', href: '/about' },
+      { label: 'Career Advice', href: '/career-advice' },
+      { label: 'Contact us', href: '/contact' },
+    ],
+  },
 ];
 
 export default function Footer() {
   return (
     <footer className="bg-ink text-white/70 mt-auto">
-      <div className="max-w-[1320px] mx-auto px-6 py-14 grid grid-cols-1 md:grid-cols-[1.4fr_1fr_1fr] gap-10">
+      <div className="max-w-[1320px] mx-auto px-6 py-14 grid grid-cols-1 md:grid-cols-[1.2fr_1fr_1fr_1fr] gap-10">
         <div>
           <Image src="/logo.png" alt="Job Centre Uganda" width={150} height={36} className="h-8 w-auto object-contain mb-3 brightness-0 invert" />
           <p className="text-sm leading-relaxed max-w-[320px]">

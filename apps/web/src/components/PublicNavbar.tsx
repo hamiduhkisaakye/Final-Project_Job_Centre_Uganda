@@ -11,7 +11,9 @@ import UserMenu, { PORTAL_MENUS } from './UserMenu';
 const NAV_LINKS = [
   { href: '/jobs', label: 'Find Jobs' },
   { href: '/companies', label: 'Companies' },
-  { href: '/blog', label: 'Blog' },
+  { href: '/career-advice', label: 'Career Advice' },
+  { href: '/about', label: 'About' },
+  { href: '/contact', label: 'Contact' },
 ];
 
 export default function PublicNavbar() {

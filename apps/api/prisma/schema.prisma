@@ -8,8 +8,10 @@
 // (Assessment/AssessmentAttempt, apply-gated), interview scheduling
 // (Interview), analytics (derived from existing timestamped rows, no new
 // models), and video resumes (SeekerProfile.videoResumeUrl).
-// Phase 4 adds: an admin-authored CMS/blog (BlogPost). Billing/credits/
-// boosts remains deferred — Company.plan/credits stay unused placeholders.
+// Phase 4 adds: an admin-authored CMS/blog (BlogPost, rebranded "Career
+// Advice" on the frontend), a public Contact form (ContactMessage). Billing/
+// credits/boosts remains deferred — Company.plan/credits stay unused
+// placeholders.
 
 generator client {
   provider        = "prisma-client-js"
@@ -187,7 +189,10 @@ model BlogPost {
   // Set once at creation from the title and never changed on update — keeps
   // public URLs stable even if the title is edited later.
   slug          String         @unique
+  // Plain text — a short card teaser, not formatted.
   excerpt       String?
+  // Sanitized HTML (see blog/sanitize-options.ts's tag allow-list), authored
+  // via the TipTap WYSIWYG editor (apps/web/src/components/BlogEditor.tsx).
   content       String
   coverImageUrl String?
   status        BlogPostStatus @default(DRAFT)
@@ -202,6 +207,20 @@ model BlogPost {
   author User @relation(fields: [authorId], references: [id])
 
   @@index([status, publishedAt])
+}
+
+// Public Contact page submissions — no auth, no relation to User (a sender
+// need not have an account). Read/marked-read from the admin inbox at
+// /admin/contact-messages.
+model ContactMessage {
+  id        String    @id @default(uuid())
+  name      String
+  email     String
+  message   String
+  readAt    DateTime?
+  createdAt DateTime  @default(now())
+
+  @@index([readAt, createdAt])
 }
 
 model Assessment {

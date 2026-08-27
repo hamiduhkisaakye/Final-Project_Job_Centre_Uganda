@@ -58,8 +58,10 @@ npm run dev:web    # http://localhost:3000
 
 ## What's implemented
 
-**Public:** Homepage, Job Search & Filter, Job Detail (apply + save + live
-match score + message company), Company Profile, Login/Register (role split).
+**Public:** Homepage (with a "Latest from the team" Career Advice widget),
+Job Search & Filter, Job Detail (apply + save + live match score + message
+company), Company Profile, Career Advice (public blog — index + post pages),
+About, Contact (real form, saved to an admin inbox), Login/Register (role split).
 
 **Seeker portal** (`/dashboard`): Dashboard (strength meter, recommendations),
 Applications board (4-stage, withdraw, message recruiter), Messages
@@ -75,7 +77,9 @@ Settings & Branding (logo upload, company profile).
 **Admin portal** (`/admin`): Dashboard (counts + pending-moderation alert +
 semantic-matching embeddings backfill + analytics charts), Job Moderation
 queue (auto-flags, approve/reject/escalate), Users & Companies
-(suspend/reactivate, verify/reject), Blog (draft/publish CMS, Phase 4).
+(suspend/reactivate, verify/reject), Career Advice (WYSIWYG blog editor —
+TipTap rich text, cover + inline images, live preview, AI-assisted
+enhancement via `OPENAI_API_KEY`), Inbox (Contact form submissions).
 
 **Phase 3** added: company-authored skill assessments attached to jobs
 (apply-gated), interview scheduling (chat auto-post + `.ics` export),
@@ -84,8 +88,12 @@ analytics charts (company + admin dashboards), and video resumes.
 **Phase 4** added: a real-time notifications system (bell icon, WebSocket-
 pushed, covers new messages / application stage changes / new applications /
 moderation decisions), an auto-generated chat message when a company moves
-an applicant's stage, and an admin-authored CMS/blog (`/blog` public index +
-post pages, `/admin/blog` draft/publish editor).
+an applicant's stage, and an admin-authored CMS/blog — later expanded into
+**Career Advice**: a TipTap WYSIWYG editor (headings/lists/links/inline
+images, sanitized HTML storage), an AI "Enhance with AI" helper (OpenAI
+chat completion, optional key, review-before-apply), a homepage "latest
+post" widget, and new About/Contact pages (Contact backed by a real
+database-persisted admin inbox).
 
 ## Deliberately deferred
 
@@ -104,6 +112,11 @@ original Phase-2 deferred list has now shipped.
   https://platform.openai.com/api-keys, add it, then either re-save a
   profile/job (which re-embeds automatically) or click **Run backfill** on
   the admin dashboard to embed everything that predates the key.
+- **"Enhance with AI" (Career Advice editor) needs the same OpenAI key** —
+  unlike matching, this is a direct user action, so a missing/exhausted key
+  surfaces as a clear inline error in the editor instead of a silent
+  fallback. Uses a `gpt-4o-mini` chat completion, not the embeddings
+  endpoint — same `OPENAI_API_KEY`, different API call.
 - **Resume text vs. resume file** are separate: the `resumeText` textarea on
   the profile page is what gets embedded and drives the match score; the
   uploaded PDF/Word file (below it) is just a downloadable artifact for

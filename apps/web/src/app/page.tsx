@@ -6,8 +6,14 @@ import Footer from '@/components/Footer';
 import JobCard from '@/components/JobCard';
 import Reveal from '@/components/Reveal';
 import TestimonialCarousel from '@/components/TestimonialCarousel';
-import { publicFetch } from '@/lib/api';
-import type { Company, Job } from '@/lib/types';
+import { publicFetch, API_ORIGIN } from '@/lib/api';
+import type { BlogPost, Company, Job } from '@/lib/types';
+
+function postTeaser(post: BlogPost) {
+  if (post.excerpt) return post.excerpt;
+  const text = post.content.replace(/<[^>]+>/g, ' ').replace(/\s+/g, ' ').trim();
+  return text.length > 200 ? `${text.slice(0, 200)}…` : text;
+}
 
 const TESTIMONIALS = [
   {
@@ -50,12 +56,14 @@ const HOW_IT_WORKS = [
 ];
 
 export default async function HomePage() {
-  const [result, companies] = await Promise.all([
+  const [result, companies, latestPosts] = await Promise.all([
     publicFetch<{ data: Job[]; meta: any }>('/jobs?take=6&sort=newest'),
     publicFetch<Company[]>('/companies'),
+    publicFetch<BlogPost[]>('/blog?take=1'),
   ]);
   const jobs = result?.data || [];
   const companyCount = companies?.length ?? 0;
+  const latestPost = latestPosts?.[0];
 
   return (
     <>
@@ -232,6 +240,43 @@ export default async function HomePage() {
           </div>
         </Reveal>
       </section>
+
+      {latestPost && (
+        <section className="bg-ground py-16">
+          <Reveal className="max-w-[1320px] mx-auto px-6">
+            <div className="flex items-baseline justify-between mb-5">
+              <div>
+                <div className="text-xs font-bold tracking-wide text-primary mb-2">CAREER ADVICE</div>
+                <h2 className="text-2xl md:text-3xl font-bold">Latest from the team</h2>
+              </div>
+              <Link href="/career-advice" className="text-primary font-semibold text-sm hover:text-primary-pressed transition-colors">
+                View all posts →
+              </Link>
+            </div>
+            <Link
+              href={`/career-advice/${latestPost.slug}`}
+              className="card overflow-hidden flex flex-col md:flex-row hover:shadow-2 hover:border-primary transition-all hover:-translate-y-0.5"
+            >
+              {latestPost.coverImageUrl ? (
+                <div className="w-full md:w-[420px] h-[240px] md:h-auto flex-none bg-white overflow-hidden">
+                  {/* eslint-disable-next-line @next/next/no-img-element */}
+                  <img src={`${API_ORIGIN}${latestPost.coverImageUrl}`} alt={latestPost.title} className="w-full h-full object-cover" />
+                </div>
+              ) : (
+                <div className="w-full md:w-[420px] h-[240px] md:h-auto flex-none bg-white" />
+              )}
+              <div className="p-7 flex flex-col gap-3 flex-1 justify-center">
+                <div className="text-xs text-muted">
+                  {latestPost.publishedAt && new Date(latestPost.publishedAt).toLocaleDateString('en-GB', { dateStyle: 'medium' })}
+                </div>
+                <div className="text-xl font-semibold leading-snug">{latestPost.title}</div>
+                <p className="text-muted line-clamp-3">{postTeaser(latestPost)}</p>
+                <span className="text-primary font-semibold text-sm">Read the full post →</span>
+              </div>
+            </Link>
+          </Reveal>
+        </section>
+      )}
 
       <section className="bg-gradient-to-br from-primary to-primary-pressed py-16">
         <Reveal className="max-w-[1320px] mx-auto px-6">

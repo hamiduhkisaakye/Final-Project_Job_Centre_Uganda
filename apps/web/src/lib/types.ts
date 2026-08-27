@@ -139,6 +139,15 @@ export interface BlogPost {
   updatedAt: string;
 }
 
+export interface ContactMessage {
+  id: string;
+  name: string;
+  email: string;
+  message: string;
+  readAt?: string | null;
+  createdAt: string;
+}
+
 export interface Conversation {
   id: string;
   companyId: string;
