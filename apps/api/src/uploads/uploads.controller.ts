@@ -25,7 +25,9 @@ const VIDEO_DIR = path.join(STORAGE_ROOT, 'videos');
 const BLOG_DIR = path.join(STORAGE_ROOT, 'blog');
 for (const dir of [RESUME_DIR, LOGO_DIR, AVATAR_DIR, VIDEO_DIR, BLOG_DIR]) fs.mkdirSync(dir, { recursive: true });
 
-const RESUME_TYPES = new Set(['application/pdf', 'application/msword', 'application/vnd.openxmlformats-officedocument.wordprocessingml.document']);
+// Exported so cv.controller.ts's parse-only upload endpoint reuses the same
+// allow-list instead of duplicating it.
+export const RESUME_TYPES = new Set(['application/pdf', 'application/msword', 'application/vnd.openxmlformats-officedocument.wordprocessingml.document']);
 const IMAGE_TYPES = new Set(['image/png', 'image/jpeg', 'image/webp']);
 const VIDEO_TYPES = new Set(['video/mp4', 'video/webm']);
 

@@ -65,7 +65,9 @@ About, Contact (real form, saved to an admin inbox), Login/Register (role split)
 
 **Seeker portal** (`/dashboard`): Dashboard (strength meter, recommendations),
 Applications board (4-stage, withdraw, message recruiter), Messages
-(real-time chat), Saved Jobs, Profile/resume editor (+ resume file upload).
+(real-time chat), Saved Jobs, Profile/resume editor (+ resume file upload,
+AI CV auto-fill with a review-before-apply step, and a branded PDF CV
+download).
 
 **Company portal** (`/company`): Dashboard (KPIs + job table), Post a Job
 (4-step: details → requirements → salary & screening → preview/publish),
@@ -117,6 +119,13 @@ original Phase-2 deferred list has now shipped.
   surfaces as a clear inline error in the editor instead of a silent
   fallback. Uses a `gpt-4o-mini` chat completion, not the embeddings
   endpoint — same `OPENAI_API_KEY`, different API call.
+- **CV auto-fill (seeker Profile page) also needs `OPENAI_API_KEY`** — same
+  posture as AI blog enhancement: uploading a resume always stores the file
+  normally regardless of whether a key is set, but the "we found some
+  details" review panel only appears if the key is configured and the
+  extraction call succeeds, otherwise a clear error is shown next to the
+  upload. Text is pulled from the PDF/Word file with `pdf-parse`/`mammoth`,
+  then structured by the same `gpt-4o-mini` call as blog enhancement.
 - **Resume text vs. resume file** are separate: the `resumeText` textarea on
   the profile page is what gets embedded and drives the match score; the
   uploaded PDF/Word file (below it) is just a downloadable artifact for

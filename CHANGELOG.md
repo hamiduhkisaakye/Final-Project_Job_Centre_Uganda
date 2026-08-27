@@ -11,6 +11,84 @@ changes, revert by restoring the described prior structure.
 
 ---
 
+## 2026-08-27 — AI CV auto-fill (review-before-apply) + branded PDF CV export
+
+Confirmed via `AskUserQuestion`: AI-powered field extraction (reusing the
+existing optional `OPENAI_API_KEY` pattern), review-then-apply UX (matches
+the AI blog-enhancement flow), `@react-pdf/renderer` for the PDF. No schema
+changes — every target `SeekerProfile` field already existed.
+
+**New dependencies** (`apps/api`): `pdf-parse` (2.4.5 — turned out to be a
+newer, richer rewrite than the classic same-named package: class-based
+`new PDFParse({ data }).getText()`, not a default-export function; depends
+on `pdfjs-dist` + a native `@napi-rs/canvas` binding, confirmed working in
+this environment), `mammoth` (.doc/.docx text extraction), `@react-pdf/renderer`
+(PDF generation) + its peer dep `react` (new to `apps/api` — NestJS itself
+has no React dependency). **Deliberately no JSX in `apps/api`** —
+`tsconfig.json` has never compiled `.tsx`; the PDF's element tree is built
+with plain `React.createElement(...)` calls in a `.ts` file instead, to
+avoid new/untested build-config surface on top of this session's
+already-flaky NestJS incremental-build cache.
+
+**Backend** — new `apps/api/src/cv/` module:
+- `cv-parser.service.ts`: `extractText()` dispatches on mimetype
+  (`pdf-parse` for PDF, `mammoth.extractRawText` for Word); `parse()` then
+  sends the text to OpenAI (`gpt-4o-mini`, `response_format: json_object`,
+  same posture as `blog-ai.service.ts` — throws a clear `BadRequestException`
+  if `OPENAI_API_KEY` is unset, since this is a direct user action) and
+  returns `{ fullName?, headline?, about?, location?, yearsExperience?, skills?, resumeText? }`
+  — never persisted by this endpoint, stateless like the blog AI-enhance call.
+- `cv-pdf.service.ts`: `generateForUser(userId)` loads `User`+`SeekerProfile`
+  and renders a branded CV — colored header band with the Job Centre Uganda
+  logo, name/headline/location/experience/email, About, Skills (pill boxes),
+  the seeker's `resumeText` as the experience/background section, and a
+  `fixed` footer branding line repeating on every page. Logo read from new
+  `apps/api/assets/logo.png` (copied from `apps/web/public/logo.png`) via
+  `path.resolve(process.cwd(), 'assets/logo.png')` — same resolution
+  pattern `uploads.controller.ts` already uses for `LOCAL_STORAGE_DIR`, no
+  `nest-cli.json` asset-copying config needed since the source file is
+  committed to git and always present next to wherever `dist/main.js` runs.
+- `cv.controller.ts`: `POST /me/cv/parse` (`@Roles('JOB_SEEKER')`, memory-storage
+  multipart upload — parse-only, nothing written to disk, reusing
+  `uploads.controller.ts`'s now-`export`ed `RESUME_TYPES` allow-list) and
+  `GET /me/cv/pdf` (same `@Res()`-based file-serving pattern as
+  `interviews.controller.ts`'s `.ics` export).
+- `cv.module.ts`, registered in `app.module.ts`.
+
+**Frontend** (`apps/web/src/app/dashboard/profile/page.tsx`): `onResumeChange`
+keeps its existing `/uploads/resume` call unchanged (the real file is still
+stored exactly as before), then also calls the new `/me/cv/parse` endpoint
+with the same file. A review card appears on success (styled like the AI
+blog-suggestion panel) listing every extracted field with **Apply to form**
+(copies only the fields the AI actually returned into local `form` state —
+never blanks a field the model didn't find, and never calls the save API
+itself, so "Save profile" remains the one path to persistence) and
+**Discard**. A new "Download CV (PDF)" button (disabled until `fullName` is
+set) calls the already-existing `downloadFile()` helper from `lib/api.ts`
+(zero new frontend plumbing — the same helper the interview `.ics` export
+already used).
+
+**Verified**: both apps typecheck/build clean (same `tsconfig.tsbuildinfo`
+clean-rebuild step as every prior change this session — the API took
+noticeably longer to boot this time due to the heavier `pdfjs-dist` module
+graph, not an error). `GET /me/cv/pdf` produced a genuinely well-formatted
+2-page branded PDF from a real seeded profile (confirmed by feeding it back
+through `pdf-parse` and reading the extracted text — header, sections, and
+the repeating footer all rendered correctly). `POST /me/cv/parse` against
+that same real PDF correctly extracted text and reached the OpenAI call
+(past the "empty text" guard) — the AI call itself hit the same known
+`insufficient_quota` limitation on this environment's OpenAI account
+already seen with blog enhancement, returning a clean 400 rather than a
+500, confirming the error-handling path.
+
+**To revert:** delete `apps/api/src/cv/` and `apps/api/assets/logo.png`;
+remove `CvModule` from `app.module.ts`; remove the `export` from
+`RESUME_TYPES` in `uploads.controller.ts`; `npm uninstall pdf-parse mammoth @react-pdf/renderer react`
+in `apps/api`; revert `onResumeChange` and remove the review-panel JSX and
+"Download CV" button from `dashboard/profile/page.tsx`.
+
+---
+
 ## 2026-08-27 — Career Advice previous/next post navigation
 
 New `blog.service.ts#adjacent(slug)` — "previous" is the closest published

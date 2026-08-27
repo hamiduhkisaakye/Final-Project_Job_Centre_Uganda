@@ -17,6 +17,7 @@ import { InterviewsModule } from './interviews/interviews.module';
 import { AnalyticsModule } from './analytics/analytics.module';
 import { BlogModule } from './blog/blog.module';
 import { ContactModule } from './contact/contact.module';
+import { CvModule } from './cv/cv.module';
 
 @Module({
   imports: [
@@ -38,6 +39,7 @@ import { ContactModule } from './contact/contact.module';
     AnalyticsModule,
     BlogModule,
     ContactModule,
+    CvModule,
   ],
 })
 export class AppModule {}

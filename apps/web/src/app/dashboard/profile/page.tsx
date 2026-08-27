@@ -1,18 +1,33 @@
 'use client';
 
 import { useRef, useState } from 'react';
+import { Sparkles } from 'lucide-react';
 import { useAuth, useApi, useApiUpload } from '@/lib/auth-context';
-import { API_ORIGIN, ApiError } from '@/lib/api';
+import { API_ORIGIN, ApiError, downloadFile } from '@/lib/api';
 import SeekerAvatar from '@/components/SeekerAvatar';
 
+interface ParsedCvFields {
+  fullName?: string;
+  headline?: string;
+  about?: string;
+  location?: string;
+  yearsExperience?: number;
+  skills?: string[];
+  resumeText?: string;
+}
+
 export default function ProfilePage() {
-  const { user, refreshMe } = useAuth();
+  const { user, accessToken, refreshMe } = useAuth();
   const api = useApi();
   const upload = useApiUpload();
   const fileRef = useRef<HTMLInputElement>(null);
   const avatarFileRef = useRef<HTMLInputElement>(null);
   const [uploadingResume, setUploadingResume] = useState(false);
   const [resumeError, setResumeError] = useState<string | null>(null);
+  const [parsingCv, setParsingCv] = useState(false);
+  const [parseCvError, setParseCvError] = useState<string | null>(null);
+  const [parsedCv, setParsedCv] = useState<ParsedCvFields | null>(null);
+  const [downloadingCv, setDownloadingCv] = useState(false);
   const [uploadingAvatar, setUploadingAvatar] = useState(false);
   const [avatarError, setAvatarError] = useState<string | null>(null);
   const videoFileRef = useRef<HTMLInputElement>(null);
@@ -94,6 +109,8 @@ export default function ProfilePage() {
     if (!file) return;
     setUploadingResume(true);
     setResumeError(null);
+    setParsedCv(null);
+    setParseCvError(null);
     try {
       await upload('/uploads/resume', file);
       await refreshMe();
@@ -103,14 +120,71 @@ export default function ProfilePage() {
       setUploadingResume(false);
       if (fileRef.current) fileRef.current.value = '';
     }
+
+    // Best-effort auto-fill suggestion — the file itself is already safely
+    // stored above regardless of whether this succeeds. Reuses the same
+    // file object, sent as a second, separate (parse-only, not persisted)
+    // upload.
+    setParsingCv(true);
+    try {
+      const fields = await upload<ParsedCvFields>('/me/cv/parse', file);
+      setParsedCv(fields);
+    } catch (err) {
+      setParseCvError(err instanceof ApiError ? err.message : 'Could not read your CV — please try again.');
+    } finally {
+      setParsingCv(false);
+    }
+  }
+
+  function applyParsedCv() {
+    if (!parsedCv) return;
+    setForm((prev) => ({
+      ...prev,
+      fullName: parsedCv.fullName ?? prev.fullName,
+      headline: parsedCv.headline ?? prev.headline,
+      about: parsedCv.about ?? prev.about,
+      location: parsedCv.location ?? prev.location,
+      yearsExperience: parsedCv.yearsExperience ?? prev.yearsExperience,
+      skills: parsedCv.skills?.length ? parsedCv.skills.join(', ') : prev.skills,
+      resumeText: parsedCv.resumeText ?? prev.resumeText,
+    }));
+    setParsedCv(null);
+  }
+
+  async function downloadCv() {
+    setDownloadingCv(true);
+    try {
+      await downloadFile('/me/cv/pdf', accessToken, 'JobCentreUganda-CV.pdf');
+    } catch {
+      // downloadFile already surfaces a thrown ApiError to the console; a
+      // silent no-op here is fine for a one-click download action with no
+      // dedicated error UI slot.
+    } finally {
+      setDownloadingCv(false);
+    }
   }
 
   return (
     <div className="max-w-[720px]">
-      <h1 className="text-2xl font-bold mb-1">Resume & Profile</h1>
-      <p className="text-sm text-muted mb-5">
-        This powers your AI match score and what recruiters see. Strength: {p?.profileStrength ?? 0}%
-      </p>
+      <div className="flex flex-col sm:flex-row sm:items-start justify-between gap-3 mb-5">
+        <div>
+          <h1 className="text-2xl font-bold mb-1">Resume & Profile</h1>
+          <p className="text-sm text-muted">
+            This powers your AI match score and what recruiters see. Strength: {p?.profileStrength ?? 0}%
+          </p>
+        </div>
+        <div className="flex-none">
+          <button
+            type="button"
+            onClick={downloadCv}
+            disabled={downloadingCv || !p?.fullName}
+            className="btn-secondary w-fit"
+          >
+            {downloadingCv ? 'Preparing…' : 'Download CV (PDF)'}
+          </button>
+          {!p?.fullName && <p className="text-xs text-muted mt-1 max-w-[220px]">Add your full name below to enable this.</p>}
+        </div>
+      </div>
 
       <div className="card p-6 mb-5 flex items-center gap-4">
         <SeekerAvatar seeker={user} size={72} />
@@ -184,7 +258,44 @@ export default function ProfilePage() {
         <div className="text-xs text-muted mt-1">PDF or Word, up to 5MB.</div>
         {uploadingResume && <div className="text-xs text-primary mt-1">Uploading…</div>}
         {resumeError && <div className="text-xs text-danger mt-1">{resumeError}</div>}
+        {parsingCv && (
+          <div className="text-xs text-primary mt-2 flex items-center gap-1.5">
+            <Sparkles className="w-3.5 h-3.5" /> Reading your CV…
+          </div>
+        )}
+        {parseCvError && <div className="border border-danger bg-red-50 rounded p-3 text-xs text-danger mt-3">{parseCvError}</div>}
       </div>
+
+      {parsedCv && (
+        <div className="card p-6 mt-5 border-2 border-accent">
+          <div className="flex items-center gap-2 font-semibold text-sm text-primary mb-1.5">
+            <Sparkles className="w-4 h-4" /> We found some details in your CV
+          </div>
+          <p className="text-xs text-muted mb-4">
+            Review them below, then Apply to fill in the form above. Nothing is saved until you click Save profile.
+          </p>
+          <div className="bg-ground rounded p-4 flex flex-col gap-2 text-sm mb-4">
+            {parsedCv.fullName && <div><span className="font-semibold">Name:</span> {parsedCv.fullName}</div>}
+            {parsedCv.headline && <div><span className="font-semibold">Headline:</span> {parsedCv.headline}</div>}
+            {parsedCv.location && <div><span className="font-semibold">Location:</span> {parsedCv.location}</div>}
+            {parsedCv.yearsExperience != null && <div><span className="font-semibold">Years of experience:</span> {parsedCv.yearsExperience}</div>}
+            {parsedCv.skills && parsedCv.skills.length > 0 && (
+              <div><span className="font-semibold">Skills:</span> {parsedCv.skills.join(', ')}</div>
+            )}
+            {parsedCv.about && <div><span className="font-semibold">About:</span> {parsedCv.about}</div>}
+            {parsedCv.resumeText && (
+              <div>
+                <span className="font-semibold">Resume summary:</span>{' '}
+                <span className="text-muted">{parsedCv.resumeText.slice(0, 220)}{parsedCv.resumeText.length > 220 ? '…' : ''}</span>
+              </div>
+            )}
+          </div>
+          <div className="flex items-center gap-3">
+            <button type="button" className="btn-secondary h-9 text-sm" onClick={() => setParsedCv(null)}>Discard</button>
+            <button type="button" className="btn-primary h-9 text-sm" onClick={applyParsedCv}>Apply to form</button>
+          </div>
+        </div>
+      )}
 
       <div className="card p-6 mt-5">
         <div className="text-sm font-semibold mb-1">Video resume</div>
