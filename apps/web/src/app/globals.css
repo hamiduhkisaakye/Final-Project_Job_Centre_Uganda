@@ -12,6 +12,15 @@ a {
   @apply text-primary;
 }
 
+/* scroll-smooth is applied globally via <html> in app/layout.tsx. Turned
+   back off for users who've asked their OS for reduced motion — same
+   accessibility posture as Reveal.tsx's scroll-in animations. */
+@media (prefers-reduced-motion: reduce) {
+  html {
+    scroll-behavior: auto;
+  }
+}
+
 /* Wrapped in @layer components so these sit BEFORE Tailwind's utilities in
    the compiled CSS (their un-@layer position was after `@tailwind utilities`
    in source, which — at equal specificity — let e.g. `.input`'s baked-in
