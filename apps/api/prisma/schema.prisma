@@ -8,7 +8,8 @@
 // (Assessment/AssessmentAttempt, apply-gated), interview scheduling
 // (Interview), analytics (derived from existing timestamped rows, no new
 // models), and video resumes (SeekerProfile.videoResumeUrl).
-// Billing/credits/boosts and a CMS/blog are still deferred.
+// Phase 4 adds: an admin-authored CMS/blog (BlogPost). Billing/credits/
+// boosts remains deferred — Company.plan/credits stay unused placeholders.
 
 generator client {
   provider        = "prisma-client-js"
@@ -175,6 +176,34 @@ model Notification {
   @@index([userId, createdAt])
 }
 
+enum BlogPostStatus {
+  DRAFT
+  PUBLISHED
+}
+
+model BlogPost {
+  id            String         @id @default(uuid())
+  title         String
+  // Set once at creation from the title and never changed on update — keeps
+  // public URLs stable even if the title is edited later.
+  slug          String         @unique
+  excerpt       String?
+  content       String
+  coverImageUrl String?
+  status        BlogPostStatus @default(DRAFT)
+  authorId      String
+  // Set on first publish and left untouched by unpublish/republish, so a
+  // draft->publish->unpublish->publish cycle doesn't reshuffle the public
+  // listing's date order.
+  publishedAt   DateTime?
+  createdAt     DateTime       @default(now())
+  updatedAt     DateTime       @updatedAt
+
+  author User @relation(fields: [authorId], references: [id])
+
+  @@index([status, publishedAt])
+}
+
 model Assessment {
   id          String   @id @default(uuid())
   companyId   String
@@ -261,6 +290,7 @@ model User {
   assessmentAttempts  AssessmentAttempt[]
   interviewsCreated   Interview[]
   notifications       Notification[]
+  blogPosts           BlogPost[]
 
   @@index([role, status])
 }

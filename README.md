@@ -73,15 +73,26 @@ reject zone for a required-reason rejection), Messages (real-time chat),
 Settings & Branding (logo upload, company profile).
 
 **Admin portal** (`/admin`): Dashboard (counts + pending-moderation alert +
-semantic-matching embeddings backfill), Job Moderation queue (auto-flags,
-approve/reject/escalate), Users & Companies (suspend/reactivate, verify/reject).
+semantic-matching embeddings backfill + analytics charts), Job Moderation
+queue (auto-flags, approve/reject/escalate), Users & Companies
+(suspend/reactivate, verify/reject), Blog (draft/publish CMS, Phase 4).
 
-## Deliberately deferred to later phases
+**Phase 3** added: company-authored skill assessments attached to jobs
+(apply-gated), interview scheduling (chat auto-post + `.ics` export),
+analytics charts (company + admin dashboards), and video resumes.
 
-Per the confirmed Phase-2 scope: video resumes, skill assessments, interview
-scheduling, billing/credits/boosts, CMS/blog, analytics charts. The schema
-and module boundaries (`apps/api/prisma/schema.prisma`, module structure)
-leave room for all of these without a rewrite.
+**Phase 4** added: a real-time notifications system (bell icon, WebSocket-
+pushed, covers new messages / application stage changes / new applications /
+moderation decisions), an auto-generated chat message when a company moves
+an applicant's stage, and an admin-authored CMS/blog (`/blog` public index +
+post pages, `/admin/blog` draft/publish editor).
+
+## Deliberately deferred
+
+**Billing/credits/boosts** remains deferred — `Company.plan`/`Company.credits`
+exist in the schema but are unused placeholders; there is no purchase flow
+or credit-consumption mechanic anywhere in the app. Everything else from the
+original Phase-2 deferred list has now shipped.
 
 ## Known simplifications worth knowing about
 

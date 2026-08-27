@@ -22,7 +22,8 @@ const RESUME_DIR = path.join(STORAGE_ROOT, 'resumes');
 const LOGO_DIR = path.join(STORAGE_ROOT, 'logos');
 const AVATAR_DIR = path.join(STORAGE_ROOT, 'avatars');
 const VIDEO_DIR = path.join(STORAGE_ROOT, 'videos');
-for (const dir of [RESUME_DIR, LOGO_DIR, AVATAR_DIR, VIDEO_DIR]) fs.mkdirSync(dir, { recursive: true });
+const BLOG_DIR = path.join(STORAGE_ROOT, 'blog');
+for (const dir of [RESUME_DIR, LOGO_DIR, AVATAR_DIR, VIDEO_DIR, BLOG_DIR]) fs.mkdirSync(dir, { recursive: true });
 
 const RESUME_TYPES = new Set(['application/pdf', 'application/msword', 'application/vnd.openxmlformats-officedocument.wordprocessingml.document']);
 const IMAGE_TYPES = new Set(['image/png', 'image/jpeg', 'image/webp']);
@@ -127,5 +128,26 @@ export class UploadsController {
       create: { userId: user.sub, videoResumeUrl },
     });
     return { videoResumeUrl };
+  }
+
+  // Unlike the other upload endpoints, there's no existing row to persist
+  // onto here — a new blog post doesn't exist yet at upload time. The admin
+  // editor holds the returned URL in local state and includes it in the
+  // subsequent create/update call instead.
+  @Post('blog-cover')
+  @Roles('ADMIN')
+  @UseInterceptors(
+    FileInterceptor('file', {
+      storage: diskStorage({
+        destination: BLOG_DIR,
+        filename: (_req, file, cb) => cb(null, safeName(file.originalname)),
+      }),
+      limits: { fileSize: 2 * 1024 * 1024 },
+      fileFilter: (_req, file, cb) => cb(null, IMAGE_TYPES.has(file.mimetype)),
+    }),
+  )
+  async uploadBlogCover(@UploadedFile() file?: Express.Multer.File) {
+    if (!file) throw new BadRequestException('Attach a PNG, JPEG or WebP image under 2MB');
+    return { coverImageUrl: `/uploads/blog/${file.filename}` };
   }
 }

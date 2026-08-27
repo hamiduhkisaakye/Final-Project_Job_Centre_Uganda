@@ -18,6 +18,10 @@ const GROUPS = [
     label: 'Directory',
     items: [{ href: '/admin/users', label: 'Users & Companies' }],
   },
+  {
+    label: 'Content',
+    items: [{ href: '/admin/blog', label: 'Blog' }],
+  },
 ];
 
 export default function AdminLayout({ children }: { children: React.ReactNode }) {

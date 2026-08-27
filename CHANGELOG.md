@@ -1,10 +1,114 @@
 # Changelog
 
-Manual change log for rollback tracking (this folder is not a git repository).
-Newest entries first. Each entry lists exactly which files changed and what
-to restore to undo it — for CSS-class-only tweaks, the "before" value is
-given inline; for structural changes, revert by restoring the described
-prior structure.
+Manual change log for rollback tracking. The project is now backed up to
+GitHub (`origin` → `https://github.com/hamiduhkisaakye/Final-Project_Job_Centre_Uganda.git`,
+branch `main`) — for anything committed, `git log`/`git revert` is the
+authoritative way to roll back. This file remains useful for the "why" behind
+a change and for anything not yet committed. Newest entries first. Each entry
+lists exactly which files changed and what to restore to undo it — for
+CSS-class-only tweaks, the "before" value is given inline; for structural
+changes, revert by restoring the described prior structure.
+
+---
+
+## 2026-08-27 — Phase 4: admin-authored CMS/blog
+
+Per the confirmed scope (billing/credits/boosts explicitly skipped —
+`Company.plan`/`Company.credits` untouched, no purchase flow of any kind):
+an admin-authored blog with a draft/publish workflow, public index + detail
+pages, and a cover-image upload.
+
+**Schema** (`apps/api/prisma/schema.prisma`, migration
+`20260827150000_blog`): new `BlogPostStatus` enum (`DRAFT`/`PUBLISHED`) and
+`BlogPost` model (title, unique `slug` — set once at creation from the title
+via the same `slugify` + numeric-suffix-collision pattern as
+`jobs.service.ts`, and never changed on update, so public URLs stay stable
+even if the title is edited later; optional `excerpt`/`coverImageUrl`;
+`content` as plain text, paragraphs split on blank lines — no markdown
+parser/rich-text editor, consistent with how `Company.about`/`Job.description`
+are already handled; `authorId` FK to `User`; `publishedAt` set on first
+publish and left untouched by unpublish/republish so re-publishing doesn't
+reshuffle the listing's date order). Added `blogPosts BlogPost[]` to `User`.
+
+**Backend** — new `apps/api/src/blog/` module (`blog.service.ts`,
+`blog.controller.ts`, `blog.module.ts`, `dto/create-blog-post.dto.ts`,
+`dto/update-blog-post.dto.ts`): `GET /blog` and `GET /blog/:slug` are public
+(published-only, 404 otherwise); `GET/POST/PATCH/DELETE /admin/blog...` plus
+`POST /admin/blog/:id/publish`/`unpublish` are `@Roles('ADMIN')`-gated.
+Registered in `apps/api/src/app.module.ts`. `apps/api/src/uploads/uploads.controller.ts`
+gained a `BLOG_DIR` storage dir and `POST /uploads/blog-cover`
+(`@Roles('ADMIN')`, reuses the existing `IMAGE_TYPES`/`safeName` pattern) —
+unlike the other upload endpoints it has no DB side effect (a new post
+doesn't exist yet at upload time), it just returns `{ coverImageUrl }` for
+the editor to hold in local state.
+
+**Frontend**: `apps/web/src/lib/types.ts` gained `BlogPostStatus`/`BlogPost`.
+New public pages `apps/web/src/app/blog/page.tsx` (index, card grid) and
+`apps/web/src/app/blog/[slug]/page.tsx` (detail, with a `generateMetadata`
+export for per-page SEO title/description — new pattern for this app, no
+other page used it before). New admin page `apps/web/src/app/admin/blog/page.tsx`
+— mirrors `company/assessments/page.tsx`'s single-page list+editor pattern
+exactly (local `useState<EditorState | null>` toggles list vs. editor, no
+dynamic route) with a cover-image upload widget mirroring
+`company/settings/page.tsx`'s logo uploader. `apps/web/src/components/PublicNavbar.tsx`
+gained a "Blog" nav link; `apps/web/src/app/admin/layout.tsx` gained a
+"Content → Blog" sidebar group.
+
+**To revert:** drop the `BlogPost` table/`BlogPostStatus` enum and the
+`blogPosts` relation from `User` in schema.prisma (new migration, or
+`git revert` the migration commit); delete `apps/api/src/blog/`; remove
+`BlogModule` from `app.module.ts`; remove the `blog-cover` block and
+`BLOG_DIR` from `uploads.controller.ts`; delete `apps/web/src/app/blog/` and
+`apps/web/src/app/admin/blog/`; remove the `BlogPostStatus`/`BlogPost` types
+from `types.ts`; remove the "Blog" entries from `PublicNavbar.tsx`'s
+`NAV_LINKS` and `admin/layout.tsx`'s `GROUPS`.
+
+---
+
+## 2026-08-27 — Real-time notifications, auto stage-change chat messages, chat bubble fixes, sticky portal headers
+
+*(Recorded retroactively — implemented before this changelog file existed.)*
+
+- **Sticky portal headers**: the `h-16` header bar in `apps/web/src/app/dashboard/layout.tsx`,
+  `apps/web/src/app/company/layout.tsx`, and `apps/web/src/app/admin/layout.tsx`
+  gained `sticky top-0 z-20` so it stays pinned while the page scrolls.
+- **New `apps/api/src/notifications/` module**: `Notification` model +
+  `NotificationType` enum (schema), a standalone `NotificationsGateway`
+  (`/notifications` WebSocket namespace, per-user `user:${userId}` room —
+  deliberately a separate gateway from `ChatGateway` rather than extending
+  it, to avoid a `ChatModule ↔ NotificationsModule` circular dependency
+  since `ChatService` also needs to fire notifications), `NotificationsService`
+  (`create`, `notifyCompany` — fans out to every `CompanyMember`, `list`,
+  `markRead`, `markAllRead`), REST endpoints under `/me/notifications`.
+  Wired into 4 triggers: `ChatService.send` (new message → the other side),
+  `ApplicationsService.companyMoveStage` (stage change → seeker),
+  `ApplicationsService.apply` (new application → all company members),
+  `ModerationService.decide` (moderation decision → all company members).
+- **`Message.isSystem` field**: auto-generated stage-change chat messages
+  (posted via `ApplicationsService.companyMoveStage`, using the acting
+  company user as sender) are flagged `isSystem: true` and rendered as a
+  centered, un-bubbled system notice in `MessagesPanel.tsx` instead of a
+  normal colored bubble. Rejection wording is deliberately generic — the
+  recruiter's typed reason is never included in the seeker-facing text.
+- **New `apps/web/src/components/NotificationBell.tsx`**: bell icon +
+  unread badge + dropdown, mounted in all three portal headers.
+- **Chat bubble fixes** in `apps/web/src/components/MessagesPanel.tsx`: added
+  `break-words whitespace-pre-wrap` to the message bubble (previously a long
+  unbroken string like a URL would overflow the `max-w-[70%]` wrapper); added
+  `linkifyMessage()` (new helper in `apps/web/src/lib/format.ts`) so URLs in
+  message text render as real clickable links.
+
+**To revert:** drop the `Notification` table/`NotificationType` enum and the
+`isSystem` column from `Message` in schema.prisma; delete
+`apps/api/src/notifications/`; remove `NotificationsModule` from
+`app.module.ts` and the `NotificationsModule`/`NotificationsService`
+injections from `chat.module.ts`/`chat.service.ts`,
+`applications.module.ts`/`applications.service.ts`,
+`moderation.module.ts`/`moderation.service.ts`; delete
+`apps/web/src/components/NotificationBell.tsx`; remove its mount points from
+the 3 portal layouts; remove `sticky top-0 z-20` from those layouts' header
+divs; revert the `linkifyMessage`/`isSystem`/`break-words whitespace-pre-wrap`
+changes in `MessagesPanel.tsx` and `format.ts`.
 
 ---
 
