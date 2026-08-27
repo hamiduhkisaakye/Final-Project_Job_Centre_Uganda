@@ -198,10 +198,10 @@ export default async function HomePage() {
 
       <section className="bg-primary py-12">
         <Reveal className="max-w-[1320px] mx-auto px-6 flex flex-col md:flex-row items-center gap-10">
-          <div className="w-full md:max-w-[560px] ml-auto text-right">
+          <div className="w-full md:max-w-[560px] mx-auto text-center">
             <div className="text-xs font-bold tracking-wide text-accent mb-2">AI MATCHING</div>
             <h3 className="text-3xl font-bold text-white mb-3">Upload your CV once. Get matched every day.</h3>
-            <p className="text-white/80 mb-5 md:ml-auto max-w-[520px]">
+            <p className="text-white/80 mb-5 mx-auto max-w-[520px]">
               We read your experience and skills, then rank live roles by real fit — and tell you exactly why each one matched.
             </p>
             <Link href="/register" className="btn-primary bg-accent text-ink hover:bg-accent-pressed">
