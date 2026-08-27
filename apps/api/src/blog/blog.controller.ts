@@ -1,4 +1,5 @@
 import { Body, Controller, Delete, Get, Param, Patch, Post, Query, UseGuards } from '@nestjs/common';
+import { BlogCategory } from '@prisma/client';
 import { BlogService } from './blog.service';
 import { BlogAiService, EnhanceBlogPostInput } from './blog-ai.service';
 import { CreateBlogPostDto } from './dto/create-blog-post.dto';
@@ -18,14 +19,19 @@ export class BlogController {
 
   // Public — no guard.
   @Get('blog')
-  listPublished(@Query('take') take?: string) {
+  listPublished(@Query('take') take?: string, @Query('category') category?: BlogCategory, @Query('q') q?: string) {
     const parsed = take ? Number(take) : undefined;
-    return this.blog.listPublished(parsed && parsed > 0 ? parsed : undefined);
+    return this.blog.listPublished(parsed && parsed > 0 ? parsed : undefined, category, q);
   }
 
   @Get('blog/:slug')
   getPublishedBySlug(@Param('slug') slug: string) {
     return this.blog.getPublishedBySlug(slug);
+  }
+
+  @Get('blog/:slug/related')
+  related(@Param('slug') slug: string) {
+    return this.blog.related(slug);
   }
 
   // Admin-only from here down.

@@ -183,6 +183,17 @@ enum BlogPostStatus {
   PUBLISHED
 }
 
+// Fixed, small taxonomy — enough to drive category filters on the index
+// page and topic-matched "related articles" on a post page, without the
+// complexity of freeform tags.
+enum BlogCategory {
+  CV_RESUME
+  INTERVIEWS
+  SALARY_NEGOTIATION
+  CAREER_GROWTH
+  WORKPLACE_TIPS
+}
+
 model BlogPost {
   id            String         @id @default(uuid())
   title         String
@@ -195,6 +206,7 @@ model BlogPost {
   // via the TipTap WYSIWYG editor (apps/web/src/components/BlogEditor.tsx).
   content       String
   coverImageUrl String?
+  category      BlogCategory   @default(CAREER_GROWTH)
   status        BlogPostStatus @default(DRAFT)
   authorId      String
   // Set on first publish and left untouched by unpublish/republish, so a
@@ -207,6 +219,7 @@ model BlogPost {
   author User @relation(fields: [authorId], references: [id])
 
   @@index([status, publishedAt])
+  @@index([status, category, publishedAt])
 }
 
 // Public Contact page submissions — no auth, no relation to User (a sender

@@ -124,6 +124,7 @@ export interface Notification {
 }
 
 export type BlogPostStatus = 'DRAFT' | 'PUBLISHED';
+export type BlogCategory = 'CV_RESUME' | 'INTERVIEWS' | 'SALARY_NEGOTIATION' | 'CAREER_GROWTH' | 'WORKPLACE_TIPS';
 
 export interface BlogPost {
   id: string;
@@ -132,6 +133,7 @@ export interface BlogPost {
   excerpt?: string | null;
   content: string;
   coverImageUrl?: string | null;
+  category: BlogCategory;
   status: BlogPostStatus;
   authorId: string;
   publishedAt?: string | null;

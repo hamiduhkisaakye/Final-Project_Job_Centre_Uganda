@@ -11,6 +11,75 @@ changes, revert by restoring the described prior structure.
 
 ---
 
+## 2026-08-27 — Homepage widget redesign + Career Advice categories, filters, and related articles
+
+Confirmed via `AskUserQuestion`: homepage widget becomes a 3-post grid
+(replacing the single-post spotlight); added a `BlogCategory` taxonomy to
+make filters and "related articles" genuinely meaningful rather than
+falling back to "just other recent posts."
+
+**Schema**: new `BlogCategory` enum (`CV_RESUME`, `INTERVIEWS`,
+`SALARY_NEGOTIATION`, `CAREER_GROWTH`, `WORKPLACE_TIPS`) and
+`BlogPost.category` field (`@default(CAREER_GROWTH)` so the migration didn't
+need a nullable column), migration `20260827200000_blog_category`. New
+composite index `[status, category, publishedAt]`.
+
+**Backend**: `blog.service.ts#listPublished` gained optional `category`/`q`
+(search) params (`Prisma.BlogPostWhereInput`, case-insensitive `contains` on
+title/excerpt). New `blog.service.ts#related(slug, take=3)` — prefers other
+published posts in the same category, tops up with the most recent other
+posts if the category doesn't have 3 yet. New route
+`GET /blog/:slug/related` (public). `CreateBlogPostDto`/`UpdateBlogPostDto`
+gained an optional `category` field (`@IsEnum(BlogCategory)`).
+
+**Frontend**: new `apps/web/src/lib/blog-categories.ts` (single source of
+truth for the 5 category labels — `BLOG_CATEGORIES` array +
+`categoryLabel()`, mirroring the Prisma enum). `apps/web/src/components/BlogPostPreview.tsx`
+gained an optional `category` prop (renders a badge above the title) — used
+by the admin editor's Preview toggle, the AI-suggestion panel, and the
+public post page, so all three stay in sync.
+
+- **Admin editor** (`admin/career-advice/page.tsx`): new Category `<select>`
+  next to the Title field; category shown as a column in the posts list table.
+- **Homepage** (`page.tsx`): `/blog?take=1` → `/blog?take=3`; the single
+  large "spotlight" card replaced with a 3-column card grid (cover image,
+  category badge, title, teaser, date), same `Reveal`-wrapped section
+  between "For Employers" and "Get Hired."
+- **Career Advice index** (`career-advice/page.tsx`): now a filterable
+  listing — category pills (`All` + the 5 categories, active-state styled,
+  plain `<Link>`s with `?category=`) plus a search box (`<form action="/career-advice">`,
+  `?q=`) reading `searchParams` server-side, no client JS. Cards gained a
+  category badge.
+- **Career Advice detail page** (`career-advice/[slug]/page.tsx`): fetches
+  the post and its related posts in parallel (`Promise.all`, since
+  `/blog/:slug/related` resolves the post server-side from the slug and
+  doesn't need the detail fetch to finish first); new "Related articles"
+  section (3-card row) rendered between the post content and the footer.
+
+**Backfilled**: the 5 existing sample posts each assigned a distinct
+category via authenticated `PATCH` calls (CV tips → CV_RESUME, interview
+prep → INTERVIEWS, salary negotiation → SALARY_NEGOTIATION, LinkedIn
+presence → WORKPLACE_TIPS, career change → CAREER_GROWTH) so the filter
+pills and related-articles logic have real coverage across all 5 categories
+to demonstrate against.
+
+**Verified**: both apps typecheck/build clean (same `tsconfig.tsbuildinfo`
+clean-rebuild step as every prior migration this session); REST-level
+category filter, search, and `related` (including its same-category-then-
+recent-fallback behavior) all confirmed correct; homepage/index/detail pages
+confirmed rendering the right posts, badges, filters, and related section.
+
+**To revert:** drop the `BlogCategory` enum/`category` column (new
+migration, or `git revert`); remove the `category`/`q` params from
+`blog.service.ts#listPublished` and delete `related()`; remove the
+`GET /blog/:slug/related` route; delete `apps/web/src/lib/blog-categories.ts`;
+remove the `category` prop from `BlogPostPreview.tsx`; revert
+`page.tsx` (homepage)'s widget section, `career-advice/page.tsx`'s filter
+bar, and `career-advice/[slug]/page.tsx`'s related-articles section to their
+prior single-post/no-filter/no-related forms.
+
+---
+
 ## 2026-08-27 — Career Advice rename, WYSIWYG editor, AI enhancement, latest-post widget, sample posts, About/Contact pages
 
 Confirmed via `AskUserQuestion`: rename Blog → Career Advice (URL included,

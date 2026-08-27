@@ -1,4 +1,5 @@
-import { IsOptional, IsString } from 'class-validator';
+import { IsEnum, IsOptional, IsString } from 'class-validator';
+import { BlogCategory } from '@prisma/client';
 
 export class CreateBlogPostDto {
   @IsString()
@@ -14,4 +15,8 @@ export class CreateBlogPostDto {
   @IsOptional()
   @IsString()
   coverImageUrl?: string;
+
+  @IsOptional()
+  @IsEnum(BlogCategory)
+  category?: BlogCategory;
 }

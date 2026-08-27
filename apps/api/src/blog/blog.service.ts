@@ -1,4 +1,5 @@
 import { Injectable, NotFoundException } from '@nestjs/common';
+import { BlogCategory, Prisma } from '@prisma/client';
 import slugify from 'slugify';
 import sanitizeHtml from 'sanitize-html';
 import { PrismaService } from '../prisma/prisma.service';
@@ -9,6 +10,7 @@ interface BlogPostInput {
   excerpt?: string;
   content: string;
   coverImageUrl?: string;
+  category?: BlogCategory;
 }
 
 @Injectable()
@@ -62,18 +64,40 @@ export class BlogService {
     return { success: true };
   }
 
-  listPublished(take = 20) {
-    return this.prisma.blogPost.findMany({
-      where: { status: 'PUBLISHED' },
-      orderBy: { publishedAt: 'desc' },
-      take,
-    });
+  listPublished(take = 20, category?: BlogCategory, q?: string) {
+    const where: Prisma.BlogPostWhereInput = {
+      status: 'PUBLISHED',
+      ...(category ? { category } : {}),
+      ...(q ? { OR: [{ title: { contains: q, mode: 'insensitive' } }, { excerpt: { contains: q, mode: 'insensitive' } }] } : {}),
+    };
+    return this.prisma.blogPost.findMany({ where, orderBy: { publishedAt: 'desc' }, take });
   }
 
   async getPublishedBySlug(slug: string) {
     const post = await this.prisma.blogPost.findUnique({ where: { slug } });
     if (!post || post.status !== 'PUBLISHED') throw new NotFoundException('Post not found');
     return post;
+  }
+
+  // Prefers other published posts in the same category; tops up with the
+  // most recent other published posts if the category doesn't have enough
+  // (e.g. a lightly-populated category, or the seed data's early days).
+  async related(slug: string, take = 3) {
+    const post = await this.getPublishedBySlug(slug);
+    const sameCategory = await this.prisma.blogPost.findMany({
+      where: { status: 'PUBLISHED', category: post.category, id: { not: post.id } },
+      orderBy: { publishedAt: 'desc' },
+      take,
+    });
+    if (sameCategory.length >= take) return sameCategory;
+
+    const fillerIds = sameCategory.map((p) => p.id).concat(post.id);
+    const filler = await this.prisma.blogPost.findMany({
+      where: { status: 'PUBLISHED', id: { notIn: fillerIds } },
+      orderBy: { publishedAt: 'desc' },
+      take: take - sameCategory.length,
+    });
+    return [...sameCategory, ...filler];
   }
 
   listAllForAdmin() {

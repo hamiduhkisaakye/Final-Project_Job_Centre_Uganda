@@ -6,7 +6,8 @@ import { useApi, useApiUpload } from '@/lib/auth-context';
 import { API_ORIGIN, ApiError } from '@/lib/api';
 import BlogEditor from '@/components/BlogEditor';
 import BlogPostPreview from '@/components/BlogPostPreview';
-import type { BlogPost, BlogPostStatus } from '@/lib/types';
+import { BLOG_CATEGORIES, categoryLabel } from '@/lib/blog-categories';
+import type { BlogCategory, BlogPost, BlogPostStatus } from '@/lib/types';
 
 interface EditorState {
   id?: string;
@@ -14,6 +15,7 @@ interface EditorState {
   excerpt: string;
   content: string;
   coverImageUrl: string;
+  category: BlogCategory;
   status: BlogPostStatus;
 }
 
@@ -25,8 +27,8 @@ interface AiSuggestion {
 
 function toEditorState(p?: BlogPost): EditorState {
   return p
-    ? { id: p.id, title: p.title, excerpt: p.excerpt || '', content: p.content, coverImageUrl: p.coverImageUrl || '', status: p.status }
-    : { title: '', excerpt: '', content: '', coverImageUrl: '', status: 'DRAFT' };
+    ? { id: p.id, title: p.title, excerpt: p.excerpt || '', content: p.content, coverImageUrl: p.coverImageUrl || '', category: p.category, status: p.status }
+    : { title: '', excerpt: '', content: '', coverImageUrl: '', category: BLOG_CATEGORIES[0].value, status: 'DRAFT' };
 }
 
 export default function AdminCareerAdvicePage() {
@@ -87,6 +89,7 @@ export default function AdminCareerAdvicePage() {
         excerpt: editor.excerpt || undefined,
         content: editor.content,
         coverImageUrl: editor.coverImageUrl || undefined,
+        category: editor.category,
       };
       if (editor.id) {
         await api(`/admin/blog/${editor.id}`, { method: 'PATCH', body });
@@ -180,6 +183,7 @@ export default function AdminCareerAdvicePage() {
             <BlogPostPreview
               title={editor.title}
               coverImageUrl={editor.coverImageUrl}
+              category={editor.category}
               content={editor.content || '<p class="text-muted">Nothing written yet.</p>'}
               publishedAtLabel={editor.status === 'PUBLISHED' ? 'Published' : 'Draft preview'}
             />
@@ -205,9 +209,19 @@ export default function AdminCareerAdvicePage() {
                 </div>
               </div>
 
-              <div>
-                <label className="label">Title</label>
-                <input className="input" value={editor.title} onChange={(e) => setEditor({ ...editor, title: e.target.value })} placeholder="5 tips for a standout CV" />
+              <div className="grid grid-cols-1 sm:grid-cols-[1fr_220px] gap-3.5">
+                <div>
+                  <label className="label">Title</label>
+                  <input className="input" value={editor.title} onChange={(e) => setEditor({ ...editor, title: e.target.value })} placeholder="5 tips for a standout CV" />
+                </div>
+                <div>
+                  <label className="label">Category</label>
+                  <select className="input" value={editor.category} onChange={(e) => setEditor({ ...editor, category: e.target.value as BlogCategory })}>
+                    {BLOG_CATEGORIES.map((c) => (
+                      <option key={c.value} value={c.value}>{c.label}</option>
+                    ))}
+                  </select>
+                </div>
               </div>
               <div>
                 <label className="label">Excerpt (optional)</label>
@@ -257,6 +271,7 @@ export default function AdminCareerAdvicePage() {
                   <BlogPostPreview
                     title={aiSuggestion.title}
                     coverImageUrl={editor.coverImageUrl}
+                    category={editor.category}
                     content={aiSuggestion.content}
                     publishedAtLabel="AI-enhanced preview"
                   />
@@ -289,6 +304,7 @@ export default function AdminCareerAdvicePage() {
             <thead>
               <tr className="bg-primary text-white text-left">
                 <th className="px-4 py-2.5 text-xs font-semibold tracking-wide whitespace-nowrap">TITLE</th>
+                <th className="px-3 py-2.5 text-xs font-semibold tracking-wide whitespace-nowrap">CATEGORY</th>
                 <th className="px-3 py-2.5 text-xs font-semibold tracking-wide whitespace-nowrap">STATUS</th>
                 <th className="px-3 py-2.5 text-xs font-semibold tracking-wide whitespace-nowrap">DATE</th>
                 <th className="px-4 py-2.5 text-xs font-semibold tracking-wide whitespace-nowrap">ACTIONS</th>
@@ -298,6 +314,9 @@ export default function AdminCareerAdvicePage() {
               {posts.map((p, i) => (
                 <tr key={p.id} className={i % 2 ? 'bg-ground' : ''}>
                   <td className="px-4 py-3 font-medium whitespace-nowrap">{p.title}</td>
+                  <td className="px-3 py-3 whitespace-nowrap">
+                    <span className="badge badge-blue">{categoryLabel(p.category)}</span>
+                  </td>
                   <td className="px-3 py-3 whitespace-nowrap">
                     <span className={`badge ${p.status === 'PUBLISHED' ? 'badge-blue' : 'badge-grey'}`}>
                       {p.status === 'PUBLISHED' ? 'Published' : 'Draft'}

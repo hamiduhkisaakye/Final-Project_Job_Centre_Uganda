@@ -7,6 +7,7 @@ import JobCard from '@/components/JobCard';
 import Reveal from '@/components/Reveal';
 import TestimonialCarousel from '@/components/TestimonialCarousel';
 import { publicFetch, API_ORIGIN } from '@/lib/api';
+import { categoryLabel } from '@/lib/blog-categories';
 import type { BlogPost, Company, Job } from '@/lib/types';
 
 function postTeaser(post: BlogPost) {
@@ -59,11 +60,11 @@ export default async function HomePage() {
   const [result, companies, latestPosts] = await Promise.all([
     publicFetch<{ data: Job[]; meta: any }>('/jobs?take=6&sort=newest'),
     publicFetch<Company[]>('/companies'),
-    publicFetch<BlogPost[]>('/blog?take=1'),
+    publicFetch<BlogPost[]>('/blog?take=3'),
   ]);
   const jobs = result?.data || [];
   const companyCount = companies?.length ?? 0;
-  const latestPost = latestPosts?.[0];
+  const posts = latestPosts || [];
 
   return (
     <>
@@ -241,10 +242,10 @@ export default async function HomePage() {
         </Reveal>
       </section>
 
-      {latestPost && (
+      {posts.length > 0 && (
         <section className="bg-ground py-16">
           <Reveal className="max-w-[1320px] mx-auto px-6">
-            <div className="flex items-baseline justify-between mb-5">
+            <div className="flex items-baseline justify-between mb-7">
               <div>
                 <div className="text-xs font-bold tracking-wide text-primary mb-2">CAREER ADVICE</div>
                 <h2 className="text-2xl md:text-3xl font-bold">Latest from the team</h2>
@@ -253,27 +254,33 @@ export default async function HomePage() {
                 View all posts →
               </Link>
             </div>
-            <Link
-              href={`/career-advice/${latestPost.slug}`}
-              className="card overflow-hidden flex flex-col md:flex-row hover:shadow-2 hover:border-primary transition-all hover:-translate-y-0.5"
-            >
-              {latestPost.coverImageUrl ? (
-                <div className="w-full md:w-[420px] h-[240px] md:h-auto flex-none bg-white overflow-hidden">
-                  {/* eslint-disable-next-line @next/next/no-img-element */}
-                  <img src={`${API_ORIGIN}${latestPost.coverImageUrl}`} alt={latestPost.title} className="w-full h-full object-cover" />
-                </div>
-              ) : (
-                <div className="w-full md:w-[420px] h-[240px] md:h-auto flex-none bg-white" />
-              )}
-              <div className="p-7 flex flex-col gap-3 flex-1 justify-center">
-                <div className="text-xs text-muted">
-                  {latestPost.publishedAt && new Date(latestPost.publishedAt).toLocaleDateString('en-GB', { dateStyle: 'medium' })}
-                </div>
-                <div className="text-xl font-semibold leading-snug">{latestPost.title}</div>
-                <p className="text-muted line-clamp-3">{postTeaser(latestPost)}</p>
-                <span className="text-primary font-semibold text-sm">Read the full post →</span>
-              </div>
-            </Link>
+            <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+              {posts.map((post) => (
+                <Link
+                  key={post.id}
+                  href={`/career-advice/${post.slug}`}
+                  className="card overflow-hidden flex flex-col hover:shadow-2 hover:border-primary transition-all hover:-translate-y-0.5"
+                >
+                  {post.coverImageUrl ? (
+                    <div className="w-full h-[190px] flex-none bg-white overflow-hidden">
+                      {/* eslint-disable-next-line @next/next/no-img-element */}
+                      <img src={`${API_ORIGIN}${post.coverImageUrl}`} alt={post.title} className="w-full h-full object-cover" />
+                    </div>
+                  ) : (
+                    <div className="w-full h-[190px] flex-none bg-white" />
+                  )}
+                  <div className="p-5 flex flex-col gap-2.5 flex-1">
+                    <span className="badge badge-blue w-fit">{categoryLabel(post.category)}</span>
+                    <div className="font-semibold leading-snug line-clamp-2">{post.title}</div>
+                    <p className="text-sm text-muted line-clamp-2 flex-1">{postTeaser(post)}</p>
+                    <div className="flex items-center justify-between text-xs text-muted pt-2 border-t border-ground">
+                      <span>{post.publishedAt && new Date(post.publishedAt).toLocaleDateString('en-GB', { dateStyle: 'medium' })}</span>
+                      <span className="text-primary font-semibold">Read →</span>
+                    </div>
+                  </div>
+                </Link>
+              ))}
+            </div>
           </Reveal>
         </section>
       )}
