@@ -1,0 +1,462 @@
+// Job Centre Uganda schema.
+// Phase 1: design system, auth/RBAC, public pages, job posting/apply, basic
+// seeker/company portals, admin moderation.
+// Phase 2 adds: real-time chat (Conversation/Message), resume/logo file
+// uploads (SeekerProfile.resumeFileUrl, reuses Company.logoUrl), and
+// pgvector-based semantic matching (Job.embedding / SeekerProfile.embedding).
+// Phase 3 adds: company-authored skill assessments attached to jobs
+// (Assessment/AssessmentAttempt, apply-gated), interview scheduling
+// (Interview), analytics (derived from existing timestamped rows, no new
+// models), and video resumes (SeekerProfile.videoResumeUrl).
+// Billing/credits/boosts and a CMS/blog are still deferred.
+
+generator client {
+  provider        = "prisma-client-js"
+  previewFeatures = ["postgresqlExtensions"]
+}
+
+datasource db {
+  provider   = "postgresql"
+  url        = env("DATABASE_URL")
+  extensions = [vector]
+}
+
+enum UserRole {
+  ADMIN
+  COMPANY
+  JOB_SEEKER
+}
+
+enum UserStatus {
+  PENDING
+  ACTIVE
+  SUSPENDED
+  DELETED
+}
+
+enum CompanyMemberRole {
+  OWNER
+  RECRUITER
+  VIEWER
+}
+
+enum VerificationStatus {
+  UNVERIFIED
+  PENDING
+  VERIFIED
+  REJECTED
+}
+
+enum CompanyPlan {
+  FREE
+  STANDARD
+  PREMIUM
+}
+
+enum EmploymentType {
+  FULL_TIME
+  PART_TIME
+  CONTRACT
+  INTERNSHIP
+  REMOTE
+}
+
+enum JobStatus {
+  DRAFT
+  PENDING_REVIEW
+  PUBLISHED
+  PAUSED
+  CLOSED
+  REJECTED
+}
+
+enum ApplicationStage {
+  APPLIED
+  IN_REVIEW
+  INTERVIEW
+  OFFER
+  HIRED
+  REJECTED
+  WITHDRAWN
+}
+
+enum ApplicationEventType {
+  CREATED
+  STAGE_CHANGED
+  NOTE_ADDED
+}
+
+enum ModerationEntityType {
+  JOB
+  COMPANY
+}
+
+enum ModerationDecision {
+  PENDING
+  APPROVED
+  REJECTED
+  ESCALATED
+}
+
+enum InterviewMode {
+  VIDEO_CALL
+  PHONE
+  IN_PERSON
+}
+
+enum NotificationType {
+  MESSAGE
+  APPLICATION_STAGE
+  NEW_APPLICATION
+  JOB_MODERATION
+}
+
+enum InterviewStatus {
+  SCHEDULED
+  COMPLETED
+  CANCELLED
+}
+
+model Conversation {
+  id            String    @id @default(uuid())
+  companyId     String
+  seekerId      String
+  // Required, not optional — one thread per job posting, even for the same
+  // company+seeker pair, so a recruiter always has the context of which
+  // role a conversation is about instead of one blended thread covering
+  // every job that seeker ever talked to them about.
+  jobId         String
+  lastMessageAt DateTime?
+  createdAt     DateTime  @default(now())
+
+  company  Company   @relation(fields: [companyId], references: [id], onDelete: Cascade)
+  seeker   User      @relation(fields: [seekerId], references: [id], onDelete: Cascade)
+  job      Job       @relation(fields: [jobId], references: [id], onDelete: Cascade)
+  messages Message[]
+
+  @@unique([companyId, seekerId, jobId])
+  @@index([seekerId, lastMessageAt])
+  @@index([companyId, lastMessageAt])
+}
+
+model Message {
+  id             String    @id @default(uuid())
+  conversationId String
+  senderId       String
+  body           String
+  // True for auto-generated stage-change notices (see
+  // applications.service.ts#companyMoveStage) — rendered as a centered
+  // system notice in MessagesPanel instead of a normal colored bubble.
+  isSystem       Boolean   @default(false)
+  readAt         DateTime?
+  createdAt      DateTime  @default(now())
+
+  conversation Conversation @relation(fields: [conversationId], references: [id], onDelete: Cascade)
+  sender       User         @relation(fields: [senderId], references: [id], onDelete: Cascade)
+
+  @@index([conversationId, createdAt])
+}
+
+model Notification {
+  id        String           @id @default(uuid())
+  userId    String
+  type      NotificationType
+  title     String
+  body      String
+  // Relative in-app path the bell dropdown navigates to on click, e.g.
+  // "/dashboard/messages?c=<conversationId>" or "/company/pipeline".
+  link      String?
+  readAt    DateTime?
+  createdAt DateTime         @default(now())
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId, readAt])
+  @@index([userId, createdAt])
+}
+
+model Assessment {
+  id          String   @id @default(uuid())
+  companyId   String
+  title       String
+  description String?
+  // [{ question: string, options: string[], correctIndex: number }]
+  // correctIndex is stripped before this ever reaches a seeker-facing
+  // response — see assessments.service.ts#forSeeker.
+  questions   Json     @default("[]")
+  passScore   Int      @default(60)
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  company  Company             @relation(fields: [companyId], references: [id], onDelete: Cascade)
+  jobs     Job[]
+  attempts AssessmentAttempt[]
+
+  @@index([companyId])
+}
+
+model AssessmentAttempt {
+  id           String   @id @default(uuid())
+  assessmentId String
+  seekerId     String
+  // number[] — selected option index per question, same order as
+  // Assessment.questions.
+  answers      Json     @default("[]")
+  score        Int
+  passed       Boolean
+  completedAt  DateTime @default(now())
+
+  assessment Assessment @relation(fields: [assessmentId], references: [id], onDelete: Cascade)
+  seeker     User       @relation(fields: [seekerId], references: [id], onDelete: Cascade)
+
+  // One live result per seeker per assessment — retaking overwrites via
+  // upsert rather than accumulating a history (Application snapshots the
+  // score/pass at apply time, so a later retake can't rewrite the past).
+  @@unique([assessmentId, seekerId])
+  @@index([seekerId])
+}
+
+model Interview {
+  id              String          @id @default(uuid())
+  applicationId   String
+  scheduledAt     DateTime
+  durationMinutes Int             @default(30)
+  mode            InterviewMode
+  // Meeting link (VIDEO_CALL), phone number (PHONE), or address (IN_PERSON).
+  location        String?
+  notes           String?
+  status          InterviewStatus @default(SCHEDULED)
+  createdById     String
+  createdAt       DateTime        @default(now())
+  updatedAt       DateTime        @updatedAt
+
+  application Application @relation(fields: [applicationId], references: [id], onDelete: Cascade)
+  createdBy   User        @relation(fields: [createdById], references: [id])
+
+  @@index([applicationId])
+  @@index([scheduledAt])
+}
+
+model User {
+  id              String     @id @default(uuid())
+  email           String     @unique
+  phone           String?
+  passwordHash    String
+  role            UserRole
+  status          UserStatus @default(PENDING)
+  emailVerifiedAt DateTime?
+  lastLoginAt     DateTime?
+  createdAt       DateTime   @default(now())
+  updatedAt       DateTime   @updatedAt
+  deletedAt       DateTime?
+
+  seekerProfile       SeekerProfile?
+  companyMemberships  CompanyMember[]
+  applications        Application[]
+  savedJobs           SavedJob[]
+  applicationEvents   ApplicationEvent[]  @relation("EventActor")
+  moderationDecisions ModerationQueue[]   @relation("ModerationDecider")
+  conversations       Conversation[]
+  sentMessages        Message[]
+  assessmentAttempts  AssessmentAttempt[]
+  interviewsCreated   Interview[]
+  notifications       Notification[]
+
+  @@index([role, status])
+}
+
+model SeekerProfile {
+  userId            String                       @id
+  user              User                         @relation(fields: [userId], references: [id], onDelete: Cascade)
+  // The seeker's actual name — set at registration, editable on the
+  // profile page. Kept separate from `headline` (a professional tagline
+  // like "Marketing Officer"), which is what it used to be conflated with,
+  // showing a job title everywhere a person's name should appear.
+  fullName          String?
+  // Profile photo — a headshot, shown to recruiters wherever their name
+  // appears (pipeline, chat, application review). Separate from company
+  // logos: uploaded via POST /uploads/avatar, same pattern as resumeFileUrl.
+  avatarUrl         String?
+  headline          String?
+  about             String?
+  location          String?
+  willingToRelocate Boolean                      @default(false)
+  yearsExperience   Int?
+  expectedSalaryMin Int?
+  expectedSalaryMax Int?
+  currency          String                       @default("UGX")
+  skills            Json                         @default("[]")
+  // Free-text resume body — still the source text embedded for semantic
+  // matching (see matching/embeddings.service.ts) even now that a real
+  // uploaded file can also be attached below.
+  resumeText        String?
+  resumeFileUrl     String?
+  resumeFileName    String?
+  // Uploaded via POST /uploads/video-resume, same disk-storage pattern as
+  // the resume file. Shown alongside the resume on the profile page and to
+  // recruiters in SeekerProfileModal.
+  videoResumeUrl    String?
+  profileStrength   Int                          @default(0)
+  // Populated from `resumeText` + headline/skills via OpenAI embeddings.
+  // Unsupported so Prisma Client leaves it alone; read/written with raw SQL
+  // in matching/embeddings.service.ts.
+  embedding         Unsupported("vector(1536)")?
+  updatedAt         DateTime                     @updatedAt
+}
+
+model Company {
+  id                         String             @id @default(uuid())
+  name                       String
+  slug                       String             @unique
+  logoUrl                    String?
+  coverUrl                   String?
+  industry                   String?
+  sizeBand                   String?
+  website                    String?
+  about                      String?
+  hqLocation                 String?
+  verificationStatus         VerificationStatus @default(UNVERIFIED)
+  salaryTransparencyVerified Boolean            @default(false)
+  plan                       CompanyPlan        @default(FREE)
+  credits                    Int                @default(3)
+  createdAt                  DateTime           @default(now())
+  updatedAt                  DateTime           @updatedAt
+
+  members       CompanyMember[]
+  jobs          Job[]
+  conversations Conversation[]
+  assessments   Assessment[]
+
+  @@index([verificationStatus])
+}
+
+model CompanyMember {
+  companyId  String
+  userId     String
+  memberRole CompanyMemberRole @default(RECRUITER)
+  joinedAt   DateTime          @default(now())
+
+  company Company @relation(fields: [companyId], references: [id], onDelete: Cascade)
+  user    User    @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@id([companyId, userId])
+}
+
+model Job {
+  id                String         @id @default(uuid())
+  companyId         String
+  title             String
+  slug              String         @unique
+  description       String
+  responsibilities  Json           @default("[]")
+  requirements      Json           @default("[]")
+  employmentType    EmploymentType
+  seniority         String?
+  category          String
+  location          String
+  salaryMin         Int?
+  salaryMax         Int?
+  salaryCurrency    String         @default("UGX")
+  salaryPeriod      String         @default("month")
+  salaryDisclosed   Boolean        @default(false)
+  salaryVerifiedAt  DateTime?
+  skills            Json           @default("[]")
+  // Optional — when set, an applicant must have a passing AssessmentAttempt
+  // for this assessment before they can apply (see
+  // applications.service.ts#apply).
+  assessmentId      String?
+  status            JobStatus      @default(DRAFT)
+  publishedAt       DateTime?
+  expiresAt         DateTime?
+  viewsCount        Int            @default(0)
+  applicationsCount Int            @default(0)
+  createdAt         DateTime       @default(now())
+  updatedAt         DateTime       @updatedAt
+
+  // Populated from title + description + skills via OpenAI embeddings when
+  // the job is published. Unsupported/raw-SQL for the same reason as
+  // SeekerProfile.embedding above.
+  embedding Unsupported("vector(1536)")?
+
+  company       Company        @relation(fields: [companyId], references: [id], onDelete: Cascade)
+  applications  Application[]
+  savedBy       SavedJob[]
+  conversations Conversation[]
+  assessment    Assessment?    @relation(fields: [assessmentId], references: [id], onDelete: SetNull)
+
+  @@index([status, publishedAt])
+  @@index([category])
+}
+
+model Application {
+  id               String           @id @default(uuid())
+  jobId            String
+  seekerId         String
+  coverLetter      String?
+  stage            ApplicationStage @default(APPLIED)
+  matchScore       Int?
+  // Snapshotted from the seeker's AssessmentAttempt at apply time (same
+  // reasoning as matchScore — a later retake shouldn't silently rewrite a
+  // past application's recorded result). Both null when the job has no
+  // assessment attached.
+  assessmentScore  Int?
+  assessmentPassed Boolean?
+  rejectionReason  String?
+  submittedAt      DateTime         @default(now())
+  stageChangedAt   DateTime         @default(now())
+
+  job        Job                @relation(fields: [jobId], references: [id], onDelete: Cascade)
+  seeker     User               @relation(fields: [seekerId], references: [id], onDelete: Cascade)
+  events     ApplicationEvent[]
+  interviews Interview[]
+
+  @@unique([jobId, seekerId])
+  @@index([jobId, stage])
+}
+
+model ApplicationEvent {
+  id            String               @id @default(uuid())
+  applicationId String
+  actorId       String?
+  type          ApplicationEventType
+  fromStage     ApplicationStage?
+  toStage       ApplicationStage?
+  note          String?
+  createdAt     DateTime             @default(now())
+
+  application Application @relation(fields: [applicationId], references: [id], onDelete: Cascade)
+  actor       User?       @relation("EventActor", fields: [actorId], references: [id])
+
+  @@index([applicationId, createdAt])
+}
+
+model SavedJob {
+  seekerId  String
+  jobId     String
+  folder    String   @default("Shortlist")
+  note      String?
+  createdAt DateTime @default(now())
+
+  seeker User @relation(fields: [seekerId], references: [id], onDelete: Cascade)
+  job    Job  @relation(fields: [jobId], references: [id], onDelete: Cascade)
+
+  @@id([seekerId, jobId])
+}
+
+model ModerationQueue {
+  id          String               @id @default(uuid())
+  entityType  ModerationEntityType
+  entityId    String
+  reason      String?
+  autoFlags   Json                 @default("[]")
+  priority    Int                  @default(0)
+  decision    ModerationDecision   @default(PENDING)
+  decidedById String?
+  decidedAt   DateTime?
+  note        String?
+  createdAt   DateTime             @default(now())
+
+  decidedBy User? @relation("ModerationDecider", fields: [decidedById], references: [id])
+
+  @@index([decision, priority])
+}

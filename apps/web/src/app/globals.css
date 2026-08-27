@@ -1,0 +1,70 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+@import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap');
+
+body {
+  @apply bg-white text-ink font-sans;
+}
+
+a {
+  @apply text-primary;
+}
+
+/* Wrapped in @layer components so these sit BEFORE Tailwind's utilities in
+   the compiled CSS (their un-@layer position was after `@tailwind utilities`
+   in source, which — at equal specificity — let e.g. `.input`'s baked-in
+   h-11 silently beat a `h-24`/`h-32` utility applied alongside it in JSX.
+   Every multi-line textarea in the app was collapsing to input height
+   because of this). Keeping them layered lets JSX utility overrides win,
+   as intended. */
+@layer components {
+  /* Buttons — Blueprint §5.4. `transition` (not just `transition-colors`)
+     so the active:scale press-feedback below animates smoothly too —
+     `transition-colors` alone doesn't cover the `transform` property. */
+  .btn-primary {
+    @apply inline-flex items-center justify-center gap-2 rounded bg-primary text-white font-semibold h-11 px-5
+           hover:bg-accent hover:text-ink active:bg-accent-pressed active:scale-[0.97] transition duration-150
+           focus:outline-none focus:ring-2 focus:ring-primary focus:ring-offset-2
+           disabled:bg-border disabled:text-muted disabled:cursor-not-allowed disabled:active:scale-100;
+  }
+  .btn-secondary {
+    @apply inline-flex items-center justify-center gap-2 rounded border border-primary text-primary font-semibold h-11 px-5
+           bg-transparent hover:bg-ground active:bg-border active:scale-[0.97] transition duration-150
+           focus:outline-none focus:ring-2 focus:ring-primary focus:ring-offset-2
+           disabled:opacity-40 disabled:cursor-not-allowed disabled:active:scale-100;
+  }
+  .btn-danger {
+    @apply inline-flex items-center justify-center gap-2 rounded border border-danger text-danger font-semibold h-11 px-5
+           bg-transparent hover:bg-red-50 active:scale-[0.97] transition duration-150;
+  }
+  .btn-ghost {
+    @apply inline-flex items-center justify-center gap-2 rounded text-primary font-semibold h-11 px-4 hover:bg-ground active:scale-[0.97] transition duration-150;
+  }
+
+  .input {
+    @apply w-full h-11 rounded border border-border bg-white px-3.5 text-sm text-ink transition-colors duration-150
+           focus:outline-none focus:border-primary focus:ring-2 focus:ring-primary/15
+           disabled:bg-ground;
+  }
+  .label {
+    @apply block text-xs font-semibold text-ink mb-1.5;
+  }
+
+  .card {
+    @apply bg-white border border-border rounded-card shadow-1 transition-shadow duration-200;
+  }
+
+  .badge {
+    @apply inline-flex items-center gap-1 rounded-full px-2.5 py-1 text-xs font-semibold;
+  }
+  .badge-blue { @apply bg-ground text-primary; }
+  .badge-yellow { @apply bg-accent text-ink; }
+  .badge-green { @apply border border-success text-success bg-white; }
+  .badge-grey { @apply bg-ground text-muted; }
+
+  .pill {
+    @apply rounded-full px-3 py-1.5 text-xs font-semibold;
+  }
+}

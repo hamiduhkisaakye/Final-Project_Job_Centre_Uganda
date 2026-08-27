@@ -1,0 +1,36 @@
+# Lightweight local dev stack. No cloud accounts needed:
+#  - Postgres does double duty as the primary DB AND the search index
+#    (full-text + trigram indexes stand in for OpenSearch in Phase 1).
+#  - "storage" is a local-disk folder served by a tiny static server,
+#    standing in for S3 behind the same signed-URL-shaped interface,
+#    so swapping in real S3/MinIO later is a config change, not a rewrite.
+#  - Redis is real Redis (cheap to run locally, and we want the real
+#    cache/session behavior even in dev).
+services:
+  postgres:
+    # pgvector/pgvector:pg16 = the official postgres:16 image plus the
+    # pgvector extension (needed for Phase 2 semantic matching). Same PG16
+    # binary/data format as plain postgres:16, so the existing volume from
+    # Phase 1 keeps working after this swap.
+    image: pgvector/pgvector:pg16
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: jobcentre
+      POSTGRES_PASSWORD: jobcentre_dev
+      POSTGRES_DB: jobcentre
+    ports:
+      - "5432:5432"
+    volumes:
+      - jobcentre_pg_data:/var/lib/postgresql/data
+
+  redis:
+    image: redis:7-alpine
+    restart: unless-stopped
+    ports:
+      - "6379:6379"
+    volumes:
+      - jobcentre_redis_data:/data
+
+volumes:
+  jobcentre_pg_data:
+  jobcentre_redis_data:
