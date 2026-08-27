@@ -100,6 +100,27 @@ export class BlogService {
     return [...sameCategory, ...filler];
   }
 
+  // "Previous" = the closest post published before this one (older);
+  // "next" = the closest post published after it (newer) — i.e. moving
+  // forward in time, the same convention as flipping pages of a diary.
+  async adjacent(slug: string) {
+    const post = await this.getPublishedBySlug(slug);
+    const select = { slug: true, title: true, coverImageUrl: true };
+    const [previous, next] = await Promise.all([
+      this.prisma.blogPost.findFirst({
+        where: { status: 'PUBLISHED', publishedAt: { lt: post.publishedAt! } },
+        orderBy: { publishedAt: 'desc' },
+        select,
+      }),
+      this.prisma.blogPost.findFirst({
+        where: { status: 'PUBLISHED', publishedAt: { gt: post.publishedAt! } },
+        orderBy: { publishedAt: 'asc' },
+        select,
+      }),
+    ]);
+    return { previous, next };
+  }
+
   listAllForAdmin() {
     return this.prisma.blogPost.findMany({ orderBy: { createdAt: 'desc' } });
   }

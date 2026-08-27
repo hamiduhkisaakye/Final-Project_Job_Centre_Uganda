@@ -11,6 +11,33 @@ changes, revert by restoring the described prior structure.
 
 ---
 
+## 2026-08-27 — Career Advice previous/next post navigation
+
+New `blog.service.ts#adjacent(slug)` — "previous" is the closest published
+post before this one chronologically (older), "next" is the closest one
+after (newer); returns `{ previous, next }`, each either a lightweight
+`{ slug, title, coverImageUrl }` or `null` at either end of the timeline.
+New public route `GET /blog/:slug/adjacent`.
+
+`career-advice/[slug]/page.tsx` fetches it alongside the post and related
+posts (`Promise.all`, three parallel calls), and renders a two-column
+Previous/Next nav row (chevron icons, post title, hover states matching the
+rest of the app's card treatment) between the post content and the Related
+Articles section — a column collapses to nothing at either end of the
+timeline rather than showing a dead/disabled button.
+
+**Verified**: both apps typecheck/build clean; REST-confirmed the boundary
+cases directly against the 5 seeded posts (oldest has `previous: null`,
+newest has `next: null`, a middle post has both correctly pointing to its
+chronological neighbors); frontend confirmed rendering the right labels and
+neighbor titles, and correctly omitting the "Previous" button on the oldest post.
+
+**To revert:** delete `blog.service.ts#adjacent` and the
+`GET /blog/:slug/adjacent` route; remove the `adjacent` fetch and the
+Previous/Next nav block from `career-advice/[slug]/page.tsx`.
+
+---
+
 ## 2026-08-27 — Homepage widget redesign + Career Advice categories, filters, and related articles
 
 Confirmed via `AskUserQuestion`: homepage widget becomes a 3-post grid

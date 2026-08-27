@@ -29,6 +29,11 @@ export class BlogController {
     return this.blog.getPublishedBySlug(slug);
   }
 
+  @Get('blog/:slug/adjacent')
+  adjacent(@Param('slug') slug: string) {
+    return this.blog.adjacent(slug);
+  }
+
   @Get('blog/:slug/related')
   related(@Param('slug') slug: string) {
     return this.blog.related(slug);

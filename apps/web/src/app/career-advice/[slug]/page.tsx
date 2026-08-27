@@ -1,12 +1,19 @@
 import Link from 'next/link';
 import { notFound } from 'next/navigation';
 import type { Metadata } from 'next';
+import { ChevronLeft, ChevronRight } from 'lucide-react';
 import PublicNavbar from '@/components/PublicNavbar';
 import Footer from '@/components/Footer';
 import BlogPostPreview from '@/components/BlogPostPreview';
 import { publicFetch, API_ORIGIN } from '@/lib/api';
 import { categoryLabel } from '@/lib/blog-categories';
 import type { BlogPost } from '@/lib/types';
+
+interface AdjacentPost {
+  slug: string;
+  title: string;
+  coverImageUrl: string | null;
+}
 
 function description(post: BlogPost) {
   if (post.excerpt) return post.excerpt;
@@ -21,9 +28,10 @@ export async function generateMetadata({ params }: { params: { slug: string } })
 }
 
 export default async function CareerAdvicePostPage({ params }: { params: { slug: string } }) {
-  const [post, related] = await Promise.all([
+  const [post, related, adjacent] = await Promise.all([
     publicFetch<BlogPost>(`/blog/${params.slug}`),
     publicFetch<BlogPost[]>(`/blog/${params.slug}/related`),
+    publicFetch<{ previous: AdjacentPost | null; next: AdjacentPost | null }>(`/blog/${params.slug}/adjacent`),
   ]);
   if (!post) notFound();
 
@@ -43,6 +51,39 @@ export default async function CareerAdvicePostPage({ params }: { params: { slug:
           content={post.content}
           publishedAtLabel={post.publishedAt ? new Date(post.publishedAt).toLocaleDateString('en-GB', { dateStyle: 'long' }) : undefined}
         />
+
+        {(adjacent?.previous || adjacent?.next) && (
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 mt-10 pt-8 border-t border-border">
+            {adjacent?.previous ? (
+              <Link
+                href={`/career-advice/${adjacent.previous.slug}`}
+                className="group card p-4 flex items-center gap-3 hover:shadow-2 hover:border-primary transition-all"
+              >
+                <ChevronLeft className="w-5 h-5 text-muted flex-none group-hover:text-primary transition-colors" />
+                <div className="min-w-0">
+                  <div className="text-xs text-muted mb-0.5">Previous</div>
+                  <div className="font-semibold text-sm truncate">{adjacent.previous.title}</div>
+                </div>
+              </Link>
+            ) : (
+              <div />
+            )}
+            {adjacent?.next ? (
+              <Link
+                href={`/career-advice/${adjacent.next.slug}`}
+                className="group card p-4 flex items-center justify-end gap-3 text-right hover:shadow-2 hover:border-primary transition-all sm:col-start-2"
+              >
+                <div className="min-w-0">
+                  <div className="text-xs text-muted mb-0.5">Next</div>
+                  <div className="font-semibold text-sm truncate">{adjacent.next.title}</div>
+                </div>
+                <ChevronRight className="w-5 h-5 text-muted flex-none group-hover:text-primary transition-colors" />
+              </Link>
+            ) : (
+              <div />
+            )}
+          </div>
+        )}
       </div>
 
       {related && related.length > 0 && (
