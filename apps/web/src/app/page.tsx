@@ -115,9 +115,38 @@ export default async function HomePage() {
             <p className="text-lg text-white/90 drop-shadow-[0_1px_4px_rgba(0,0,0,0.4)]">
               Verified employers, transparent salaries, and AI matching that reads your CV — not just your keywords.
             </p>
+            <div className="flex flex-wrap gap-2 mt-5">
+              {HERO_QUICK_LINKS.map((link) => (
+                <Link
+                  key={link.label}
+                  href={link.href}
+                  className="pill bg-white/15 text-white border border-white/25 backdrop-blur-sm hover:bg-white hover:text-primary hover:border-white transition-colors"
+                >
+                  {link.label}
+                </Link>
+              ))}
+            </div>
           </div>
         </div>
       </section>
+
+      {stats && (
+        <div className="bg-white border-b border-border">
+          <div className="max-w-[1320px] mx-auto px-6 py-8 grid grid-cols-2 md:grid-cols-4 gap-6 text-center">
+            {[
+              { value: `${stats.liveJobs.toLocaleString()}`, label: 'Live jobs' },
+              { value: `${stats.verifiedEmployers.toLocaleString()}`, label: 'Verified employers' },
+              { value: `${stats.candidatesHired.toLocaleString()}`, label: 'Candidates hired' },
+              { value: `${stats.verifiedSalaryPercent}%`, label: 'Jobs with verified salary' },
+            ].map((stat) => (
+              <div key={stat.label}>
+                <div className="text-3xl font-bold text-primary">{stat.value}</div>
+                <div className="text-sm text-muted mt-1">{stat.label}</div>
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
 
       {/* Sticky search — only this bar pins under the nav on scroll, not the
           whole hero. Placed as a plain sibling (not nested inside the hero's
@@ -140,37 +169,8 @@ export default async function HomePage() {
             />
             <button type="submit" className="btn-primary m-1">Search</button>
           </form>
-          <div className="flex flex-wrap justify-center gap-2 max-w-[820px] mx-auto mt-3">
-            {HERO_QUICK_LINKS.map((link) => (
-              <Link
-                key={link.label}
-                href={link.href}
-                className="pill bg-ground text-primary border border-border hover:bg-primary hover:text-white hover:border-primary transition-colors"
-              >
-                {link.label}
-              </Link>
-            ))}
-          </div>
         </div>
       </div>
-
-      {stats && (
-        <div className="bg-white border-b border-border">
-          <div className="max-w-[1320px] mx-auto px-6 py-8 grid grid-cols-2 md:grid-cols-4 gap-6 text-center">
-            {[
-              { value: `${stats.liveJobs.toLocaleString()}`, label: 'Live jobs' },
-              { value: `${stats.verifiedEmployers.toLocaleString()}`, label: 'Verified employers' },
-              { value: `${stats.candidatesHired.toLocaleString()}`, label: 'Candidates hired' },
-              { value: `${stats.verifiedSalaryPercent}%`, label: 'Jobs with verified salary' },
-            ].map((stat) => (
-              <div key={stat.label}>
-                <div className="text-3xl font-bold text-primary">{stat.value}</div>
-                <div className="text-sm text-muted mt-1">{stat.label}</div>
-              </div>
-            ))}
-          </div>
-        </div>
-      )}
 
       <section className="bg-ground py-14">
         <Reveal className="max-w-[1320px] mx-auto px-6">
