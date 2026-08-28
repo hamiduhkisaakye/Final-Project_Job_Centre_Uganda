@@ -95,13 +95,13 @@ export default function JobsResults({
         ) : viewMode === 'card' ? (
           <div className="grid grid-cols-1 lg:grid-cols-2 xl:grid-cols-2 gap-5">
             {jobs.map((j) => (
-              <JobCard key={j.id} job={j} />
+              <JobCard key={j.id} job={j} hotHover />
             ))}
           </div>
         ) : (
           <div className="flex flex-col gap-3">
             {jobs.map((j) => (
-              <JobCard key={j.id} job={j} variant="list" />
+              <JobCard key={j.id} job={j} variant="list" hotHover />
             ))}
           </div>
         )}

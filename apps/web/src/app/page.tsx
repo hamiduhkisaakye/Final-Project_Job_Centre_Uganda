@@ -224,7 +224,7 @@ export default async function HomePage() {
         </Reveal>
       </section>
 
-      <section className="bg-ground py-16">
+      <section id="how-it-works" className="bg-ground py-16 scroll-mt-[72px]">
         <Reveal className="max-w-[1320px] mx-auto px-6 flex flex-col md:flex-row gap-12 items-center">
           <div className="flex-1 w-full md:max-w-[420px]">
             <Image
@@ -255,17 +255,47 @@ export default async function HomePage() {
         </Reveal>
       </section>
 
-      <section className="bg-primary py-12">
-        <Reveal className="max-w-[1320px] mx-auto px-6 flex flex-col md:flex-row items-center gap-10">
-          <div className="w-full md:max-w-[560px] mx-auto text-center">
+      <section className="bg-primary py-16">
+        <Reveal className="max-w-[1320px] mx-auto px-6 grid grid-cols-1 md:grid-cols-2 gap-10 items-center">
+          <div>
             <div className="text-xs font-bold tracking-wide text-accent mb-2">AI MATCHING</div>
-            <h3 className="text-3xl font-bold text-white mb-3">Upload your CV once. Get matched every day.</h3>
-            <p className="text-white/80 mb-5 mx-auto max-w-[520px]">
+            <h3 className="text-3xl md:text-4xl font-bold text-white leading-tight mb-4">
+              Upload your CV once. Get matched every day.
+            </h3>
+            <p className="text-white/80 mb-6 max-w-[480px]">
               We read your experience and skills, then rank live roles by real fit — and tell you exactly why each one matched.
             </p>
-            <Link href="/register" className="btn-primary bg-accent text-ink hover:bg-accent-pressed">
-              Upload your CV
-            </Link>
+            <div className="flex flex-wrap gap-3">
+              <Link href="/register" className="btn-primary bg-accent text-ink hover:bg-accent-pressed">
+                Upload your CV
+              </Link>
+              <Link href="#how-it-works" className="btn-primary bg-transparent border border-white text-white hover:bg-white/10">
+                How it works
+              </Link>
+            </div>
+          </div>
+
+          <div className="card p-6 max-w-[460px] w-full md:ml-auto">
+            <div className="flex items-center gap-4 mb-5">
+              <div
+                className="w-20 h-20 rounded-full flex-none flex items-center justify-center border-4 border-accent"
+                style={{ background: 'conic-gradient(#1E5FBF 0 87%, #EAF2FA 87% 100%)' }}
+              >
+                <div className="w-14 h-14 rounded-full bg-white flex items-center justify-center">
+                  <span className="text-xl font-bold text-primary">87%</span>
+                </div>
+              </div>
+              <div>
+                <div className="font-semibold text-ink">Senior Marketing Officer</div>
+                <div className="text-sm text-muted">Stanbic Holdings · Kampala</div>
+              </div>
+            </div>
+            <div className="text-[11px] font-bold tracking-wide text-muted mb-2">WHY YOU MATCH</div>
+            <div className="flex flex-col gap-1.5 text-sm">
+              <div className="text-success">✓ 6 yrs brand marketing — role asks 5+</div>
+              <div className="text-success">✓ Kampala based, no relocation</div>
+              <div className="text-muted">— Missing: Google Analytics certification</div>
+            </div>
           </div>
         </Reveal>
       </section>
