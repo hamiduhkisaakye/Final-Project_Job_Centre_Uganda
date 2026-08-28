@@ -18,6 +18,7 @@ import { AnalyticsModule } from './analytics/analytics.module';
 import { BlogModule } from './blog/blog.module';
 import { ContactModule } from './contact/contact.module';
 import { CvModule } from './cv/cv.module';
+import { StatsModule } from './stats/stats.module';
 
 @Module({
   imports: [
@@ -40,6 +41,7 @@ import { CvModule } from './cv/cv.module';
     BlogModule,
     ContactModule,
     CvModule,
+    StatsModule,
   ],
 })
 export class AppModule {}

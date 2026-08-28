@@ -11,6 +11,41 @@ changes, revert by restoring the described prior structure.
 
 ---
 
+## 2026-08-28 — Homepage hero: quick-search pills + live stats bar
+
+Requested via a screenshot mockup showing a pill row under the hero search
+and a 4-tile stats bar below it.
+
+**Backend** — new `apps/api/src/stats/` module (`GET /stats`, public, no
+guard): real, live-computed numbers via four Prisma `count()` queries —
+published jobs, `VERIFIED` companies, `HIRED`-stage applications, and
+published jobs with `salaryVerifiedAt` set (→ percentage). Deliberately not
+cached/denormalized — at this app's scale a few indexed-column counts are
+cheap, and "transparent, verified" numbers should never be able to drift
+from the truth. Registered in `app.module.ts`.
+
+**Frontend** (`apps/web/src/app/page.tsx`): a `HERO_QUICK_LINKS` pill row
+(Accounting, Sales, NGO / Development, Remote, Graduate trainee) added
+below the sticky search form, inside the same sticky container — each pill
+links to whichever `/jobs` query param actually drives that filter
+(`category=` for the first three, `type=REMOTE`, and a plain `q=` keyword
+search for "Graduate trainee", since it isn't a real category). A new white
+stats-bar section (4 tiles: Live jobs, Verified employers, Candidates
+hired, Jobs with verified salary %) was added directly below the sticky
+search bar, fetching `/stats` alongside the page's existing `Promise.all`
+calls; renders nothing if the fetch fails.
+
+**Verified**: both apps typecheck/build clean; `GET /stats` confirmed
+returning real seed-data numbers (12 live jobs, 7 verified employers, 2
+hired, 33% verified-salary); homepage HTML confirmed containing both new
+sections with the live numbers, not placeholders.
+
+**To revert:** delete `apps/api/src/stats/`; remove `StatsModule` from
+`app.module.ts`; remove `HERO_QUICK_LINKS`/`PublicStats`, the `/stats`
+fetch, the pill row, and the stats-bar section from `page.tsx`.
+
+---
+
 ## 2026-08-27 — AI CV auto-fill (review-before-apply) + branded PDF CV export
 
 Confirmed via `AskUserQuestion`: AI-powered field extraction (reusing the

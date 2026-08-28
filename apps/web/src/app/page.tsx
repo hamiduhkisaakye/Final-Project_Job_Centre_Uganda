@@ -41,6 +41,24 @@ const CATEGORIES: { name: string; icon: LucideIcon }[] = [
   { name: 'Logistics', icon: Truck },
 ];
 
+// Quick-search shortcuts under the hero search bar — a mix of job category,
+// employment type, and a plain keyword search, so each pill links wherever
+// that filter actually lives in the /jobs query params.
+const HERO_QUICK_LINKS = [
+  { label: 'Accounting', href: `/jobs?category=${encodeURIComponent('Accounting & Finance')}` },
+  { label: 'Sales', href: `/jobs?category=${encodeURIComponent('Sales & Marketing')}` },
+  { label: 'NGO / Development', href: `/jobs?category=${encodeURIComponent('NGO & Development')}` },
+  { label: 'Remote', href: '/jobs?type=REMOTE' },
+  { label: 'Graduate trainee', href: `/jobs?q=${encodeURIComponent('Graduate trainee')}` },
+];
+
+interface PublicStats {
+  liveJobs: number;
+  verifiedEmployers: number;
+  candidatesHired: number;
+  verifiedSalaryPercent: number;
+}
+
 const HOW_IT_WORKS = [
   {
     title: 'Build your profile',
@@ -57,10 +75,11 @@ const HOW_IT_WORKS = [
 ];
 
 export default async function HomePage() {
-  const [result, companies, latestPosts] = await Promise.all([
+  const [result, companies, latestPosts, stats] = await Promise.all([
     publicFetch<{ data: Job[]; meta: any }>('/jobs?take=6&sort=newest'),
     publicFetch<Company[]>('/companies'),
     publicFetch<BlogPost[]>('/blog?take=3'),
+    publicFetch<PublicStats>('/stats'),
   ]);
   const jobs = result?.data || [];
   const companyCount = companies?.length ?? 0;
@@ -121,8 +140,37 @@ export default async function HomePage() {
             />
             <button type="submit" className="btn-primary m-1">Search</button>
           </form>
+          <div className="flex flex-wrap justify-center gap-2 max-w-[820px] mx-auto mt-3">
+            {HERO_QUICK_LINKS.map((link) => (
+              <Link
+                key={link.label}
+                href={link.href}
+                className="pill bg-ground text-primary border border-border hover:bg-primary hover:text-white hover:border-primary transition-colors"
+              >
+                {link.label}
+              </Link>
+            ))}
+          </div>
         </div>
       </div>
+
+      {stats && (
+        <div className="bg-white border-b border-border">
+          <div className="max-w-[1320px] mx-auto px-6 py-8 grid grid-cols-2 md:grid-cols-4 gap-6 text-center">
+            {[
+              { value: `${stats.liveJobs.toLocaleString()}`, label: 'Live jobs' },
+              { value: `${stats.verifiedEmployers.toLocaleString()}`, label: 'Verified employers' },
+              { value: `${stats.candidatesHired.toLocaleString()}`, label: 'Candidates hired' },
+              { value: `${stats.verifiedSalaryPercent}%`, label: 'Jobs with verified salary' },
+            ].map((stat) => (
+              <div key={stat.label}>
+                <div className="text-3xl font-bold text-primary">{stat.value}</div>
+                <div className="text-sm text-muted mt-1">{stat.label}</div>
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
 
       <section className="bg-ground py-14">
         <Reveal className="max-w-[1320px] mx-auto px-6">
