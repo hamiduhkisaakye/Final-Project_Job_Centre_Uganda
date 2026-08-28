@@ -58,10 +58,12 @@ npm run dev:web    # http://localhost:3000
 
 ## What's implemented
 
-**Public:** Homepage (with a "Latest from the team" Career Advice widget),
-Job Search & Filter, Job Detail (apply + save + live match score + message
-company), Company Profile, Career Advice (public blog — index + post pages),
-About, Contact (real form, saved to an admin inbox), Login/Register (role split).
+**Public:** Homepage (with a "Latest from the team" Career Advice widget and
+a live "Browse by category" section with job counts), Job Search & Filter,
+Job Detail (apply + save + live match score + message company), Company
+Profile, Browse all categories, Career Advice (public blog — index + post
+pages), About, Contact (real form, saved to an admin inbox), Login/Register
+(role split).
 
 **Seeker portal** (`/dashboard`): Dashboard (strength meter, recommendations),
 Applications board (4-stage, withdraw, message recruiter), Messages
@@ -81,7 +83,9 @@ semantic-matching embeddings backfill + analytics charts), Job Moderation
 queue (auto-flags, approve/reject/escalate), Users & Companies
 (suspend/reactivate, verify/reject), Career Advice (WYSIWYG blog editor —
 TipTap rich text, cover + inline images, live preview, AI-assisted
-enhancement via `OPENAI_API_KEY`), Inbox (Contact form submissions).
+enhancement via `OPENAI_API_KEY`), Categories (CRUD picklist backing the
+homepage cards, job filters, and the post-job category dropdown — icon
+picker, sort order, live job counts), Inbox (Contact form submissions).
 
 **Phase 3** added: company-authored skill assessments attached to jobs
 (apply-gated), interview scheduling (chat auto-post + `.ics` export),

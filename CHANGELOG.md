@@ -11,6 +11,72 @@ changes, revert by restoring the described prior structure.
 
 ---
 
+## 2026-08-28 — Admin-manageable job categories: homepage cards, browse-all page, yellow hover
+
+Requested via a screenshot of the "Browse by category" section (8 cards with
+job counts + an "All 24 categories →" link) and the ask to make categories
+admin-manageable, add a browse-all page, and give the icon box a
+yellow-on-hover treatment matching the logo.
+
+**Schema** — new `Category` model (`apps/api/prisma/schema.prisma`): `id`,
+`name` (unique), `slug` (unique), `icon` (a key into a fixed frontend icon
+map, never a raw string), `sortOrder`. Migration
+`20260828100000_categories`. Deliberately **not** a foreign key on `Job` —
+`Job.category` stays the plain, indexed `String` it already was; this table
+is only a curated picklist of valid names/icons/order that every
+category-list consumer now reads from instead of three separate hardcoded
+arrays. Deleting a `Category` row is always safe — existing jobs keep their
+string value even if no row matches it anymore.
+
+**Backend** — new `apps/api/src/categories/` module: `GET /categories`
+(public) returns every category ordered by `sortOrder`, each merged with a
+live job count via `prisma.job.groupBy` on `PUBLISHED` jobs matched by
+name; `POST/PATCH/DELETE /admin/categories(/:id)` are `@Roles('ADMIN')`.
+Registered in `app.module.ts`.
+
+**Frontend**:
+- New `apps/web/src/lib/category-icons.ts` — `CATEGORY_ICONS` map of 25
+  Lucide icons (24 categories + a `Briefcase` fallback for any unmatched
+  key).
+- `apps/web/src/app/page.tsx` — removed the hardcoded 4-item `CATEGORIES`
+  array; "Browse by category" now fetches `/categories`, shows the top 8 by
+  `sortOrder` with live job counts, and an "All {n} categories →" link to
+  the new page. Icon box hover: `bg-ground` → `group-hover:bg-accent`
+  (the existing gold token), icon `group-hover:text-ink`.
+- New public `apps/web/src/app/categories/page.tsx` — same card/hover
+  treatment, shows every category.
+- New `apps/web/src/app/admin/categories/page.tsx` — list+inline-editor
+  CRUD page (name, icon picker with live preview, sort order, job count,
+  delete with `confirm()`), added to the admin nav's Directory group.
+- `apps/web/src/components/JobFilters.tsx` and
+  `apps/web/src/app/company/post-job/page.tsx` — both replaced their own
+  hardcoded category arrays with a `/categories` fetch, so deleting a
+  category in the admin page can no longer leave a dead option behind in
+  either place.
+
+**Seed data**: 24 categories created via authenticated admin REST calls
+(Sales & Marketing, Accounting & Finance, IT & Software, NGO &
+Development, Logistics, Engineering, Education, Health & Medical,
+sortOrder 10–80 to match existing seeded job data and sort first; 16
+more Uganda job-market categories at sortOrder 100+).
+
+**Verified**: `npx tsc --noEmit` clean on both apps; clean `nest build` +
+`next build` both succeed (`/categories` and `/admin/categories` compile);
+REST smoke test — created/updated/deleted a category, confirmed 404 after
+delete and that no `Job` row was touched; confirmed homepage HTML contains
+the live count (24), `group-hover:bg-accent`, and per-card job counts
+matching seed data (Sales & Marketing: 5, IT & Software: 3, etc.).
+
+**To revert**: drop the `Category` table (or `git revert` the migration +
+module), remove `apps/api/src/categories/` and its `app.module.ts` entry,
+remove `apps/web/src/lib/category-icons.ts`, `apps/web/src/app/categories/`,
+`apps/web/src/app/admin/categories/`, restore the hardcoded `CATEGORIES`
+arrays in `page.tsx` (4 items), `JobFilters.tsx` (4 items), and
+`post-job/page.tsx` (8 items), and remove the Categories nav entry from
+`admin/layout.tsx`.
+
+---
+
 ## 2026-08-28 — Homepage hero: quick-search pills + live stats bar
 
 Requested via a screenshot mockup showing a pill row under the hero search

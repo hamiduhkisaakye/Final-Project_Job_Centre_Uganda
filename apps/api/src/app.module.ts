@@ -19,6 +19,7 @@ import { BlogModule } from './blog/blog.module';
 import { ContactModule } from './contact/contact.module';
 import { CvModule } from './cv/cv.module';
 import { StatsModule } from './stats/stats.module';
+import { CategoriesModule } from './categories/categories.module';
 
 @Module({
   imports: [
@@ -42,6 +43,7 @@ import { StatsModule } from './stats/stats.module';
     ContactModule,
     CvModule,
     StatsModule,
+    CategoriesModule,
   ],
 })
 export class AppModule {}

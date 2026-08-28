@@ -1,6 +1,5 @@
 import Link from 'next/link';
 import Image from 'next/image';
-import { Megaphone, Laptop2, HeartHandshake, Truck, type LucideIcon } from 'lucide-react';
 import PublicNavbar from '@/components/PublicNavbar';
 import Footer from '@/components/Footer';
 import JobCard from '@/components/JobCard';
@@ -8,7 +7,8 @@ import Reveal from '@/components/Reveal';
 import TestimonialCarousel from '@/components/TestimonialCarousel';
 import { publicFetch, API_ORIGIN } from '@/lib/api';
 import { categoryLabel } from '@/lib/blog-categories';
-import type { BlogPost, Company, Job } from '@/lib/types';
+import { categoryIcon } from '@/lib/category-icons';
+import type { BlogPost, Category, Company, Job } from '@/lib/types';
 
 function postTeaser(post: BlogPost) {
   if (post.excerpt) return post.excerpt;
@@ -32,13 +32,6 @@ const TESTIMONIALS = [
     name: 'Grace A.',
     role: 'Programme Officer, Gulu',
   },
-];
-
-const CATEGORIES: { name: string; icon: LucideIcon }[] = [
-  { name: 'Sales & Marketing', icon: Megaphone },
-  { name: 'IT & Software', icon: Laptop2 },
-  { name: 'NGO & Development', icon: HeartHandshake },
-  { name: 'Logistics', icon: Truck },
 ];
 
 // Quick-search shortcuts under the hero search bar — a mix of job category,
@@ -75,15 +68,17 @@ const HOW_IT_WORKS = [
 ];
 
 export default async function HomePage() {
-  const [result, companies, latestPosts, stats] = await Promise.all([
+  const [result, companies, latestPosts, stats, categories] = await Promise.all([
     publicFetch<{ data: Job[]; meta: any }>('/jobs?take=6&sort=newest'),
     publicFetch<Company[]>('/companies'),
     publicFetch<BlogPost[]>('/blog?take=3'),
     publicFetch<PublicStats>('/stats'),
+    publicFetch<Category[]>('/categories'),
   ]);
   const jobs = result?.data || [];
   const companyCount = companies?.length ?? 0;
   const posts = latestPosts || [];
+  const topCategories = (categories || []).slice(0, 8);
 
   return (
     <>
@@ -172,25 +167,38 @@ export default async function HomePage() {
         </div>
       </div>
 
-      <section className="bg-ground py-14">
-        <Reveal className="max-w-[1320px] mx-auto px-6">
-          <h2 className="text-2xl font-semibold text-primary mb-5">Browse by category</h2>
-          <div className="grid grid-cols-2 md:grid-cols-4 gap-5">
-            {CATEGORIES.map((c) => (
-              <Link
-                key={c.name}
-                href={`/jobs?category=${encodeURIComponent(c.name)}`}
-                className="card p-5 flex items-center gap-3.5 hover:shadow-2 hover:border-primary hover:-translate-y-0.5 transition-all"
-              >
-                <div className="w-12 h-12 rounded bg-ground flex items-center justify-center flex-none">
-                  <c.icon className="w-6 h-6 text-primary" strokeWidth={1.75} />
-                </div>
-                <span className="font-semibold">{c.name}</span>
+      {topCategories.length > 0 && (
+        <section className="bg-ground py-14">
+          <Reveal className="max-w-[1320px] mx-auto px-6">
+            <div className="flex items-baseline justify-between mb-5">
+              <h2 className="text-2xl font-semibold text-primary">Browse by category</h2>
+              <Link href="/categories" className="text-primary font-semibold text-sm hover:text-primary-pressed transition-colors">
+                All {categories?.length ?? topCategories.length} categories →
               </Link>
-            ))}
-          </div>
-        </Reveal>
-      </section>
+            </div>
+            <div className="grid grid-cols-2 md:grid-cols-4 gap-5">
+              {topCategories.map((c) => {
+                const Icon = categoryIcon(c.icon);
+                return (
+                  <Link
+                    key={c.id}
+                    href={`/jobs?category=${encodeURIComponent(c.name)}`}
+                    className="group card p-5 flex items-center gap-3.5 hover:shadow-2 hover:border-primary hover:-translate-y-0.5 transition-all"
+                  >
+                    <div className="w-12 h-12 rounded bg-ground group-hover:bg-accent flex items-center justify-center flex-none transition-colors">
+                      <Icon className="w-6 h-6 text-primary group-hover:text-ink transition-colors" strokeWidth={1.75} />
+                    </div>
+                    <div>
+                      <div className="font-semibold">{c.name}</div>
+                      <div className="text-xs text-muted">{c.jobCount.toLocaleString()} jobs</div>
+                    </div>
+                  </Link>
+                );
+              })}
+            </div>
+          </Reveal>
+        </section>
+      )}
 
       <section className="py-14">
         <Reveal className="max-w-[1320px] mx-auto px-6">

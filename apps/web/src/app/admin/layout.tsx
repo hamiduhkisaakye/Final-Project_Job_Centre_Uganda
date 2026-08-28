@@ -16,7 +16,10 @@ const GROUPS = [
   },
   {
     label: 'Directory',
-    items: [{ href: '/admin/users', label: 'Users & Companies' }],
+    items: [
+      { href: '/admin/users', label: 'Users & Companies' },
+      { href: '/admin/categories', label: 'Categories' },
+    ],
   },
   {
     label: 'Content',

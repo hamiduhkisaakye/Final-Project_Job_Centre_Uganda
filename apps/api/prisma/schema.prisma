@@ -236,6 +236,28 @@ model ContactMessage {
   @@index([readAt, createdAt])
 }
 
+// Curated picklist of job categories — deliberately NOT a foreign key on
+// Job. Job.category stays a plain string matched by exact value everywhere
+// it's already used (jobs.service.ts#search, embeddings.service.ts#jobText);
+// this table exists only to centralize which category names are valid,
+// their icon, and their display order, so admin/post-job/JobFilters/the
+// homepage all read from one place instead of three separate hardcoded
+// arrays. Deleting a row here is always safe — existing Job rows keep
+// their string value even if no Category matches it anymore.
+model Category {
+  id        String   @id @default(uuid())
+  name      String   @unique
+  slug      String   @unique
+  // A key into the fixed frontend icon map (apps/web/src/lib/category-icons.ts)
+  // — never a freeform string, so a bad value can't break rendering.
+  icon      String
+  sortOrder Int      @default(0)
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([sortOrder])
+}
+
 model Assessment {
   id          String   @id @default(uuid())
   companyId   String

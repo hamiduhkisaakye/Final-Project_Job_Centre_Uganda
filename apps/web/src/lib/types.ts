@@ -150,6 +150,15 @@ export interface ContactMessage {
   createdAt: string;
 }
 
+export interface Category {
+  id: string;
+  name: string;
+  slug: string;
+  icon: string;
+  sortOrder: number;
+  jobCount: number;
+}
+
 export interface Conversation {
   id: string;
   companyId: string;

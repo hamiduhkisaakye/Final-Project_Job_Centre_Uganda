@@ -1,8 +1,10 @@
 'use client';
 
+import { useEffect, useState } from 'react';
 import { useRouter, useSearchParams } from 'next/navigation';
+import { useApi } from '@/lib/auth-context';
+import type { Category } from '@/lib/types';
 
-const CATEGORIES = ['Sales & Marketing', 'IT & Software', 'NGO & Development', 'Logistics'];
 const TYPES: { value: string; label: string }[] = [
   { value: 'FULL_TIME', label: 'Full-time' },
   { value: 'PART_TIME', label: 'Part-time' },
@@ -14,6 +16,12 @@ const TYPES: { value: string; label: string }[] = [
 export default function JobFilters({ facets, onNavigate }: { facets?: { category: string; count: number }[]; onNavigate?: () => void }) {
   const router = useRouter();
   const params = useSearchParams();
+  const api = useApi();
+  const [categories, setCategories] = useState<Category[]>([]);
+
+  useEffect(() => {
+    api<Category[]>('/categories').then(setCategories).catch(() => {});
+  }, [api]);
 
   function setParam(key: string, value: string | null) {
     const next = new URLSearchParams(params.toString());
@@ -45,11 +53,12 @@ export default function JobFilters({ facets, onNavigate }: { facets?: { category
       <div className="border-t border-border py-3.5">
         <div className="text-xs font-bold tracking-wide uppercase mb-2.5">Job category</div>
         <div className="flex flex-col gap-2 text-sm">
-          {CATEGORIES.map((c) => {
+          {categories.map((cat) => {
+            const c = cat.name;
             const count = facets?.find((f) => f.category === c)?.count;
             return (
               <button
-                key={c}
+                key={cat.id}
                 onClick={() => setParam('category', activeCategory === c ? null : c)}
                 className={`flex items-center justify-between text-left ${activeCategory === c ? 'text-primary font-semibold' : 'text-ink/80'}`}
               >

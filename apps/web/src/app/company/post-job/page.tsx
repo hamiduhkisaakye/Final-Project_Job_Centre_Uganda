@@ -5,10 +5,9 @@ import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import { useApi } from '@/lib/auth-context';
 import { ApiError } from '@/lib/api';
-import type { Assessment } from '@/lib/types';
+import type { Assessment, Category } from '@/lib/types';
 
 const STEPS = ['Job details', 'Requirements', 'Salary & screening', 'Preview & publish'];
-const CATEGORIES = ['Sales & Marketing', 'Accounting & Finance', 'IT & Software', 'NGO & Development', 'Logistics', 'Engineering', 'Education', 'Health & Medical'];
 const TYPES = [
   { value: 'FULL_TIME', label: 'Full-time' },
   { value: 'PART_TIME', label: 'Part-time' },
@@ -34,7 +33,7 @@ interface FormState {
 }
 
 const EMPTY: FormState = {
-  title: '', category: CATEGORIES[0], employmentType: 'FULL_TIME', location: '', seniority: 'Mid-level',
+  title: '', category: '', employmentType: 'FULL_TIME', location: '', seniority: 'Mid-level',
   description: '', responsibilities: '', requirements: '', skills: '',
   salaryMin: '', salaryMax: '', salaryDisclosed: true, assessmentId: '',
 };
@@ -47,9 +46,14 @@ export default function PostJobPage() {
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [assessments, setAssessments] = useState<Assessment[]>([]);
+  const [categories, setCategories] = useState<Category[]>([]);
 
   useEffect(() => {
     api<Assessment[]>('/company/assessments').then(setAssessments).catch(() => undefined);
+    api<Category[]>('/categories').then((cats) => {
+      setCategories(cats);
+      if (cats.length > 0) setForm((f) => (f.category ? f : { ...f, category: cats[0].name }));
+    }).catch(() => undefined);
   }, []); // eslint-disable-line react-hooks/exhaustive-deps
 
   function update<K extends keyof FormState>(key: K, value: FormState[K]) {
@@ -138,7 +142,7 @@ export default function PostJobPage() {
               <div>
                 <label className="label">Category</label>
                 <select className="input" value={form.category} onChange={(e) => update('category', e.target.value)}>
-                  {CATEGORIES.map((c) => <option key={c} value={c}>{c}</option>)}
+                  {categories.map((c) => <option key={c.id} value={c.name}>{c.name}</option>)}
                 </select>
               </div>
               <div>
