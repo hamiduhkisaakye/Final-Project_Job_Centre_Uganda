@@ -203,7 +203,10 @@ export default async function HomePage() {
       <section className="py-14">
         <Reveal className="max-w-[1320px] mx-auto px-6">
           <div className="flex items-baseline justify-between mb-5">
-            <h2 className="text-2xl font-semibold text-primary">Trending this week</h2>
+            <div className="flex items-center gap-2.5">
+              <h2 className="text-2xl font-semibold text-primary">Trending this week</h2>
+              <span className="badge badge-yellow">HOT</span>
+            </div>
             <Link href="/jobs" className="text-primary font-semibold text-sm hover:text-primary-pressed transition-colors">View all jobs →</Link>
           </div>
           {jobs.length === 0 ? (
@@ -214,7 +217,7 @@ export default async function HomePage() {
           ) : (
             <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
               {jobs.map((j) => (
-                <JobCard key={j.id} job={j} />
+                <JobCard key={j.id} job={j} hotHover />
               ))}
             </div>
           )}

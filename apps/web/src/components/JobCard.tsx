@@ -23,7 +23,20 @@ function timeAgo(iso?: string | null) {
   return `${days} days ago`;
 }
 
-export default function JobCard({ job, matchScore, variant = 'card' }: { job: Job; matchScore?: number; variant?: 'card' | 'list' }) {
+export default function JobCard({
+  job,
+  matchScore,
+  variant = 'card',
+  hotHover = false,
+}: {
+  job: Job;
+  matchScore?: number;
+  variant?: 'card' | 'list';
+  // Swaps the hover border from the default primary blue to the accent
+  // yellow — used by the homepage's "Trending this week" (HOT) section.
+  hotHover?: boolean;
+}) {
+  const hoverBorderClass = hotHover ? 'hover:border-accent' : 'hover:border-primary';
   const { user } = useAuth();
   const router = useRouter();
   const { isSaved, toggleSave } = useSavedJobs();
@@ -58,7 +71,7 @@ export default function JobCard({ job, matchScore, variant = 'card' }: { job: Jo
     return (
       <Link
         href={`/jobs/${job.slug}`}
-        className="card p-4 flex items-center gap-4 hover:shadow-2 hover:border-primary transition-shadow"
+        className={`card p-4 flex items-center gap-4 hover:shadow-2 ${hoverBorderClass} transition-shadow`}
       >
         <CompanyLogo company={{ name: job.company?.name || '', logoUrl: job.company?.logoUrl }} size={48} className="flex-none" />
         <div className="min-w-0 flex-1">
@@ -88,7 +101,7 @@ export default function JobCard({ job, matchScore, variant = 'card' }: { job: Jo
   return (
     <Link
       href={`/jobs/${job.slug}`}
-      className="card p-6 flex flex-col gap-3 hover:shadow-2 hover:border-primary transition-shadow"
+      className={`card p-6 flex flex-col gap-3 hover:shadow-2 ${hoverBorderClass} transition-shadow`}
     >
       <div className="flex items-start justify-between">
         <CompanyLogo company={{ name: job.company?.name || '', logoUrl: job.company?.logoUrl }} size={56} />
