@@ -11,6 +11,89 @@ changes, revert by restoring the described prior structure.
 
 ---
 
+## 2026-08-30 — Company profile: tabs, follow, and reviews with company replies
+
+Requested via a screenshot of a richer company profile (Follow/Visit
+website, Overview/Open Jobs/Culture/Reviews tabs, a padded open-jobs list,
+and a Company Facts card with Founded/Avg. reply time), plus an explicit
+ask for a reviews system where job seekers can rate/review a company and
+the company can publicly respond (Google Play/Maps-style). Since several
+mockup elements implied real new data this app didn't track, confirmed
+scope first: **build Follow now**, **publish reviews immediately** (no
+moderation queue, unlike job postings), **skip the Culture tab** (its
+content was undefined in the mockup), and **add "Founded" year only**
+(skip "Avg. reply time" — meaningful only with real chat-response
+aggregation this app doesn't compute, and not worth the complexity yet).
+
+**Schema** — two new models plus one field:
+`Company.foundedYear Int?`; `CompanyFollow` (seeker↔company, composite PK,
+same shape as the existing `SavedJob`); `CompanyReview` (`companyId`,
+`seekerId`, `rating` 1–5, `comment`, `response`/`respondedAt` for the
+company's single in-place reply, `@@unique([companyId, seekerId])` so a
+seeker can edit their review but never post a second one — same pattern as
+Google Play). Migration `20260829120000_company_follow_review`.
+
+**Backend** (`apps/api/src/companies/`):
+- `findBySlug` now includes `_count.follows`/`_count.reviews` and a
+  separately-aggregated `avgRating` (Prisma's `_count` can't average a
+  field).
+- `update()`'s field whitelist gained `foundedYear`.
+- New endpoints: `GET/POST/DELETE /companies/:id/follow` (seeker-only,
+  `GET` returns the caller's own follow state); `GET
+  /companies/:id/reviews` (public list, includes the reviewer's
+  `fullName`/`headline`/`avatarUrl` but **never their email** — unlike
+  every other place this shape is fetched, reviews are public);
+  `GET /companies/:id/reviews/mine`; `POST/DELETE /companies/:id/reviews`
+  (seeker, upsert semantics); `POST
+  /companies/:id/reviews/:reviewId/response` (company members only,
+  membership-checked the same way every other company mutation in this
+  service is, and cross-checks the review actually belongs to that
+  company before allowing a reply).
+
+**Frontend**:
+- New `apps/web/src/components/CompanyFollowButton.tsx` — optimistic
+  toggle, hidden for non-seeker viewers.
+- New `apps/web/src/components/CompanyReviews.tsx` — star-rating display
+  and picker, a seeker's own review form (post/edit/delete), and the
+  company-response UI (visible only when `user.company?.id` matches the
+  profile being viewed).
+- New `apps/web/src/components/CompanyTabs.tsx` — Overview / Open Jobs /
+  Reviews tab shell. Made a client component that owns all three tabs'
+  content (not just the switcher) because Overview's "View all N jobs →"
+  link needs to switch to the Open Jobs tab, which only the component
+  holding the tab state can do.
+- `apps/web/src/app/companies/[slug]/page.tsx` — rewritten around
+  `CompanyTabs`; header gained `CompanyFollowButton` next to "Visit
+  website" and a follower count in the meta line; Company Facts gained
+  "Founded" (when set) and relabeled "HQ" to "Locations" (same
+  `hqLocation` value — no fabricated branch count, unlike the mockup's
+  "78 branches").
+- **Padding fix**: the open-jobs card row (the thing you flagged) went
+  from `p-4.5` to `p-5` with `hover:shadow-2` added, inside
+  `CompanyTabs.tsx`'s `JobRow`.
+- `apps/web/src/app/company/settings/page.tsx` — added a "Founded year"
+  input.
+
+**Verified**: both apps typecheck clean; `nest build` + `next build` both
+succeed; full live flow tested end-to-end via direct API calls — a seeker
+followed a company, posted a review, the company owner responded, the
+public reviews list reflected the response with the reviewer's name but
+no email, a *different* company's owner was correctly blocked (403) from
+responding to a review that isn't theirs, and re-posting a review updated
+the same row instead of creating a duplicate; confirmed via HTML
+inspection that the tabs, follow button mount point, and the padded job
+cards all render on a live company page; test review/follow rows removed
+afterward.
+
+**To revert**: drop `CompanyFollow`/`CompanyReview` and `foundedYear` (or
+`git revert` the migration + these files), remove the new components and
+their imports from `page.tsx`, restore the old single-scroll layout (About
++ inline Open Jobs list, `p-4.5` cards, no Follow button), and drop the
+`foundedYear` field/input from `companies.service.ts#update` and
+`company/settings/page.tsx`.
+
+---
+
 ## 2026-08-29 — Job detail page: company widget, career-advice widget, wider header buttons
 
 Follow-up to the header/match/assessment redesign above, filling in the two

@@ -12,7 +12,7 @@ export default function CompanySettingsPage() {
   const fileRef = useRef<HTMLInputElement>(null);
 
   const [company, setCompany] = useState<Company | null>(null);
-  const [form, setForm] = useState({ name: '', industry: '', sizeBand: '', website: '', hqLocation: '', about: '' });
+  const [form, setForm] = useState({ name: '', industry: '', sizeBand: '', website: '', hqLocation: '', about: '', foundedYear: '' });
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [saved, setSaved] = useState(false);
@@ -31,6 +31,7 @@ export default function CompanySettingsPage() {
           website: c.website || '',
           hqLocation: c.hqLocation || '',
           about: c.about || '',
+          foundedYear: c.foundedYear ? String(c.foundedYear) : '',
         });
       })
       .finally(() => setLoading(false));
@@ -43,7 +44,8 @@ export default function CompanySettingsPage() {
     setSaved(false);
     setSaveError(null);
     try {
-      const updated = await api<Company>(`/companies/${company.id}`, { method: 'PATCH', body: form });
+      const body = { ...form, foundedYear: form.foundedYear ? Number(form.foundedYear) : undefined };
+      const updated = await api<Company>(`/companies/${company.id}`, { method: 'PATCH', body });
       setCompany(updated);
       await refreshMe();
       setSaved(true);
@@ -117,6 +119,10 @@ export default function CompanySettingsPage() {
           <div>
             <label className="label">HQ location</label>
             <input className="input" value={form.hqLocation} onChange={(e) => setForm({ ...form, hqLocation: e.target.value })} placeholder="Kampala, Uganda" />
+          </div>
+          <div>
+            <label className="label">Founded year</label>
+            <input className="input" type="number" min={1800} max={new Date().getFullYear()} value={form.foundedYear} onChange={(e) => setForm({ ...form, foundedYear: e.target.value })} placeholder="e.g. 1906" />
           </div>
         </div>
         <div>

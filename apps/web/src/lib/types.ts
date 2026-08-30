@@ -17,13 +17,28 @@ export interface Company {
   website?: string | null;
   about?: string | null;
   hqLocation?: string | null;
+  foundedYear?: number | null;
   verificationStatus: VerificationStatus;
   salaryTransparencyVerified: boolean;
   plan: 'FREE' | 'STANDARD' | 'PREMIUM';
   credits: number;
   memberRole?: 'OWNER' | 'RECRUITER' | 'VIEWER';
   jobs?: Job[];
-  _count?: { jobs: number };
+  _count?: { jobs: number; follows?: number; reviews?: number };
+  avgRating?: number | null;
+}
+
+export interface CompanyReview {
+  id: string;
+  companyId: string;
+  seekerId: string;
+  rating: number;
+  comment?: string | null;
+  response?: string | null;
+  respondedAt?: string | null;
+  createdAt: string;
+  updatedAt: string;
+  seeker?: { seekerProfile?: { fullName?: string | null; headline?: string | null; avatarUrl?: string | null } | null };
 }
 
 export interface Job {

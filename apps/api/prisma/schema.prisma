@@ -345,6 +345,8 @@ model User {
   interviewsCreated   Interview[]
   notifications       Notification[]
   blogPosts           BlogPost[]
+  companyFollows      CompanyFollow[]
+  companyReviews      CompanyReview[]
 
   @@index([role, status])
 }
@@ -399,6 +401,7 @@ model Company {
   website                    String?
   about                      String?
   hqLocation                 String?
+  foundedYear                Int?
   verificationStatus         VerificationStatus @default(UNVERIFIED)
   salaryTransparencyVerified Boolean            @default(false)
   plan                       CompanyPlan        @default(FREE)
@@ -410,8 +413,45 @@ model Company {
   jobs          Job[]
   conversations Conversation[]
   assessments   Assessment[]
+  follows       CompanyFollow[]
+  reviews       CompanyReview[]
 
   @@index([verificationStatus])
+}
+
+// Plain seeker-follows-company relation — no extra state, so a composite
+// primary key (same pattern as SavedJob) is enough; no separate id needed.
+model CompanyFollow {
+  seekerId  String
+  companyId String
+  createdAt DateTime @default(now())
+
+  seeker  User    @relation(fields: [seekerId], references: [id], onDelete: Cascade)
+  company Company @relation(fields: [companyId], references: [id], onDelete: Cascade)
+
+  @@id([seekerId, companyId])
+}
+
+// One review per seeker per company (like Google Play/Maps — a reviewer can
+// edit their own review but not post multiple). `response`/`respondedAt`
+// hold the company's single public reply; no separate response table since
+// a company can only ever have one reply per review, editable in place.
+model CompanyReview {
+  id          String    @id @default(uuid())
+  companyId   String
+  seekerId    String
+  rating      Int
+  comment     String?
+  response    String?
+  respondedAt DateTime?
+  createdAt   DateTime  @default(now())
+  updatedAt   DateTime  @updatedAt
+
+  company Company @relation(fields: [companyId], references: [id], onDelete: Cascade)
+  seeker  User    @relation(fields: [seekerId], references: [id], onDelete: Cascade)
+
+  @@unique([companyId, seekerId])
+  @@index([companyId])
 }
 
 model CompanyMember {
