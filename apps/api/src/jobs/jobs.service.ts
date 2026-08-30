@@ -80,7 +80,11 @@ export class JobsService {
   }
 
   async search(query: JobSearchQuery) {
-    const take = Math.min(Number(query.take) || 12, 50);
+    // Default page size intentionally smaller than the old 12 — with a
+    // small seed dataset, 12 was already the entire result set for most
+    // searches, so "Load more" never had anything left to load even on the
+    // plain, filter-less /jobs page.
+    const take = Math.min(Number(query.take) || 6, 50);
     const where: Prisma.JobWhereInput = { status: 'PUBLISHED' };
 
     if (query.q) {

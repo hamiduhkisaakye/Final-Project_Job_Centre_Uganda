@@ -47,6 +47,11 @@ export default function JobsResults({
   // has actually grown to match or exceed the sidebar's height. On mobile
   // the sidebar is hidden (0 height), so this is always true there.
   const [readyForLoadMore, setReadyForLoadMore] = useState(false);
+  // The height gate only makes sense once filters have narrowed the results
+  // down to something potentially shorter than the sidebar — on the plain,
+  // filter-less browse (the most common path, and the widest result set),
+  // "Load more" should always be offered once there's more to fetch.
+  const hasActiveFilters = ['category', 'type', 'location', 'salaryMin', 'verifiedSalary', 'postedWithin'].some((k) => searchParams.get(k));
 
   useEffect(() => {
     function compare() {
@@ -158,7 +163,7 @@ export default function JobsResults({
           )}
         </div>
 
-        {cursor && jobs.length < total && readyForLoadMore && (
+        {cursor && jobs.length < total && (!hasActiveFilters || readyForLoadMore) && (
           <div className="flex flex-col items-center gap-2 mt-8">
             <button type="button" className="btn-secondary" disabled={loadingMore} onClick={loadMore}>
               {loadingMore ? 'Loading…' : 'Load more jobs'}
