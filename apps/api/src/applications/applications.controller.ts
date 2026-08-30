@@ -1,5 +1,5 @@
 import { Body, Controller, Get, Param, Patch, Post, Query, UseGuards } from '@nestjs/common';
-import { IsIn, IsOptional, IsString } from 'class-validator';
+import { ArrayNotEmpty, IsArray, IsIn, IsOptional, IsString } from 'class-validator';
 import { ApplicationStage } from '@prisma/client';
 import { ApplicationsService } from './applications.service';
 import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard';
@@ -23,6 +23,16 @@ class MoveStageDto {
   @IsOptional()
   @IsString()
   reason?: string;
+}
+
+class ReorderDto {
+  @IsIn(['APPLIED', 'IN_REVIEW', 'INTERVIEW', 'OFFER', 'HIRED', 'REJECTED', 'WITHDRAWN'])
+  stage: ApplicationStage;
+
+  @IsArray()
+  @ArrayNotEmpty()
+  @IsString({ each: true })
+  orderedIds: string[];
 }
 
 @Controller('applications')
@@ -58,5 +68,11 @@ export class ApplicationsController {
   @Roles('JOB_SEEKER')
   withdraw(@CurrentUser() user: JwtUser, @Param('id') id: string) {
     return this.applications.withdraw(user.sub, id);
+  }
+
+  @Patch('reorder')
+  @Roles('JOB_SEEKER')
+  reorder(@CurrentUser() user: JwtUser, @Body() dto: ReorderDto) {
+    return this.applications.reorder(user.sub, dto.stage, dto.orderedIds);
   }
 }

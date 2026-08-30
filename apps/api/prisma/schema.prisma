@@ -382,6 +382,18 @@ model SeekerProfile {
   // the resume file. Shown alongside the resume on the profile page and to
   // recruiters in SeekerProfileModal.
   videoResumeUrl    String?
+  // Structured resume sections — the Resume Builder's source of truth.
+  // Each is a JSON array of small entry objects (id, title/school/name,
+  // dates, description…), same convention as Job.responsibilities/
+  // Assessment.questions elsewhere in this schema rather than separate
+  // relational tables, since these are always read/written as a whole list
+  // per profile. `resumeText` above is now derived from these (plus
+  // `about`) on every save — see auth.service.ts#buildResumeText — rather
+  // than hand-maintained, so semantic matching keeps working unchanged.
+  experience        Json                         @default("[]")
+  education         Json                         @default("[]")
+  certifications    Json                         @default("[]")
+  links             Json                         @default("[]")
   profileStrength   Int                          @default(0)
   // Populated from `resumeText` + headline/skills via OpenAI embeddings.
   // Unsupported so Prisma Client leaves it alone; read/written with raw SQL
@@ -528,6 +540,12 @@ model Application {
   rejectionReason  String?
   submittedAt      DateTime         @default(now())
   stageChangedAt   DateTime         @default(now())
+  // Seeker's own drag-to-reorder priority within a Kanban column — purely
+  // a personal display preference, never touched by the employer/stage
+  // workflow. Null (the default, for every application before this
+  // feature) sorts after any explicitly ordered ones, falling back to
+  // submittedAt — see applications.service.ts#reorder.
+  priorityOrder    Int?
 
   job        Job                @relation(fields: [jobId], references: [id], onDelete: Cascade)
   seeker     User               @relation(fields: [seekerId], references: [id], onDelete: Cascade)

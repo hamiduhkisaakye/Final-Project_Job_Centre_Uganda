@@ -73,6 +73,41 @@ export interface Job {
   company?: Pick<Company, 'name' | 'slug' | 'logoUrl' | 'verificationStatus'> & Partial<Company>;
 }
 
+export interface ExperienceEntry {
+  id: string;
+  title: string;
+  company: string;
+  location?: string;
+  startDate?: string;
+  endDate?: string;
+  current?: boolean;
+  description?: string;
+}
+
+export interface EducationEntry {
+  id: string;
+  school: string;
+  degree?: string;
+  fieldOfStudy?: string;
+  startYear?: string;
+  endYear?: string;
+  description?: string;
+}
+
+export interface CertificationEntry {
+  id: string;
+  name: string;
+  issuer?: string;
+  issueDate?: string;
+  credentialUrl?: string;
+}
+
+export interface LinkEntry {
+  id: string;
+  label: string;
+  url: string;
+}
+
 export interface SeekerProfile {
   userId: string;
   fullName?: string | null;
@@ -86,6 +121,10 @@ export interface SeekerProfile {
   expectedSalaryMax?: number | null;
   currency: string;
   skills: string[];
+  experience: ExperienceEntry[];
+  education: EducationEntry[];
+  certifications: CertificationEntry[];
+  links: LinkEntry[];
   resumeText?: string | null;
   resumeFileUrl?: string | null;
   resumeFileName?: string | null;
@@ -96,6 +135,7 @@ export interface SeekerProfile {
 export interface User {
   id: string;
   email: string;
+  phone?: string | null;
   role: UserRole;
   status: string;
   seekerProfile?: SeekerProfile;
@@ -114,6 +154,7 @@ export interface Application {
   rejectionReason?: string | null;
   submittedAt: string;
   stageChangedAt: string;
+  priorityOrder?: number | null;
   job?: Job;
   seeker?: { id: string; email: string; seekerProfile?: SeekerProfile };
 }
@@ -238,6 +279,6 @@ export interface Interview {
     id: string;
     seekerId: string;
     seeker?: { id: string; email: string; seekerProfile?: SeekerProfile | null };
-    job: Pick<Job, 'id' | 'title'> & { company?: Pick<Company, 'id' | 'name' | 'slug' | 'logoUrl'> };
+    job: Pick<Job, 'id' | 'title' | 'slug'> & { company?: Pick<Company, 'id' | 'name' | 'slug' | 'logoUrl'> };
   };
 }

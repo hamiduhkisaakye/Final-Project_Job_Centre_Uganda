@@ -5,6 +5,22 @@ import mammoth from 'mammoth';
 const OPENAI_CHAT_URL = 'https://api.openai.com/v1/chat/completions';
 const MODEL = 'gpt-4o-mini';
 
+export interface ParsedCvExperienceEntry {
+  title?: string;
+  company?: string;
+  startDate?: string;
+  endDate?: string;
+  current?: boolean;
+  description?: string;
+}
+
+export interface ParsedCvEducationEntry {
+  school?: string;
+  degree?: string;
+  fieldOfStudy?: string;
+  endYear?: string;
+}
+
 export interface ParsedCvFields {
   fullName?: string;
   headline?: string;
@@ -12,7 +28,8 @@ export interface ParsedCvFields {
   location?: string;
   yearsExperience?: number;
   skills?: string[];
-  resumeText?: string;
+  experience?: ParsedCvExperienceEntry[];
+  education?: ParsedCvEducationEntry[];
 }
 
 const SYSTEM_PROMPT = `You extract structured profile fields from a job seeker's CV/resume text for Job Centre Uganda, a Ugandan jobs marketplace. Read the text and respond with ONLY a JSON object with these optional keys — omit any key you genuinely cannot determine rather than guessing:
@@ -23,7 +40,19 @@ const SYSTEM_PROMPT = `You extract structured profile fields from a job seeker's
   "location": string,      // city/town, e.g. "Kampala"
   "yearsExperience": number, // total years of professional experience, a whole number
   "skills": string[],      // 5-15 concrete skills, each a short phrase
-  "resumeText": string     // a plain-text summary of their work history and qualifications, a few paragraphs, suitable to power a CV-matching search — no markdown or HTML
+  "experience": [          // every distinct role found, most recent first
+    {
+      "title": string,        // job title
+      "company": string,      // employer name
+      "startDate": string,    // as written, e.g. "Mar 2021" or "2021"
+      "endDate": string,      // as written — omit if current is true
+      "current": boolean,     // true only if the CV says "present"/"current"
+      "description": string   // 1-3 sentences of what they did/achieved in this role
+    }
+  ],
+  "education": [            // every degree/qualification found, most recent first
+    { "school": string, "degree": string, "fieldOfStudy": string, "endYear": string }
+  ]
 }
 Never invent information that isn't supported by the text.`;
 
@@ -108,7 +137,8 @@ export class CvParserService {
       location: parsed.location || undefined,
       yearsExperience: typeof parsed.yearsExperience === 'number' ? parsed.yearsExperience : undefined,
       skills: Array.isArray(parsed.skills) ? parsed.skills.filter((s) => typeof s === 'string') : undefined,
-      resumeText: parsed.resumeText || undefined,
+      experience: Array.isArray(parsed.experience) ? parsed.experience.filter((e) => e && typeof e === 'object') : undefined,
+      education: Array.isArray(parsed.education) ? parsed.education.filter((e) => e && typeof e === 'object') : undefined,
     };
   }
 }

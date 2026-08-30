@@ -11,6 +11,119 @@ changes, revert by restoring the described prior structure.
 
 ---
 
+## 2026-08-30 — Job seeker portal: dashboard nav, applications reorder, full Resume Builder rebuild
+
+Requested via three screenshots (Dashboard, Applications, Resume Builder)
+with an explicit ask to review what's already built vs. missing before
+touching anything. Confirmed scope on the three genuinely large decisions
+first: build dedicated Recommended/Interviews pages (not just badges),
+persist application drag-reorder (not session-only), and do a full
+structured Resume Builder rebuild (not a lighter version). All three
+chosen at the largest-effort tier.
+
+### Dashboard & sidebar nav
+- Header gained a "Search jobs, companies" bar (submits to `/jobs?q=`).
+- New `apps/web/src/app/dashboard/recommended/page.tsx` (all AI-matched
+  jobs, not just the homepage's top 6) and
+  `apps/web/src/app/dashboard/interviews/page.tsx` (every upcoming/past
+  interview, reusing the existing `.ics` download). Both added to
+  `dashboard/layout.tsx`'s sidebar with live badge counts fetched once in
+  `Shell` — no backend changes needed, both reuse existing endpoints
+  (`/me/recommendations?limit=50`, `/me/interviews`).
+
+### Applications board
+- `apps/api/prisma/schema.prisma`: new `Application.priorityOrder Int?` —
+  a seeker's own drag-to-reorder priority within a Kanban column, entirely
+  separate from `stage` (still employer-owned, per the pre-existing
+  Blueprint §8.3 comment in this file — cards still never move between
+  columns). Migration `20260830090000_application_priority_order`.
+- New `PATCH /applications/reorder` (`applications.service.ts#reorder`) —
+  bulk-sets `priorityOrder` for a seeker's own applications within one
+  stage; `mine()`'s `orderBy` now sorts by it first (nulls last), falling
+  back to `submittedAt desc` exactly as before for anyone who's never
+  reordered anything.
+- `apps/web/src/app/dashboard/applications/page.tsx` rewritten: added a
+  Board/List view toggle, a search box, and "All companies"/date-range
+  filter dropdowns (all client-side — the full application list was
+  already fetched unpaginated). Board view now uses `@dnd-kit/sortable`
+  (new dependency, the official companion to the already-installed
+  `@dnd-kit/core`) for within-column drag-to-reorder, plus a "drop here to
+  withdraw" zone as an alternative to the existing Withdraw button — both
+  call the same endpoints the button already used.
+
+### Resume Builder (full rebuild)
+The old `/dashboard/profile` was one flat form with a single freeform
+`resumeText` textarea. It's now a structured builder with a sections
+navigator, live preview, and per-field AI suggestions — the biggest single
+change in this entry.
+- **Schema**: `SeekerProfile` gained `experience`, `education`,
+  `certifications`, `links` — JSON array columns, same convention as
+  `Job.responsibilities`/`Assessment.questions` elsewhere in this schema
+  rather than separate relational tables. Migration
+  `20260830100000_seeker_resume_sections`.
+- **`resumeText` is now derived, not hand-typed**: `auth.service.ts`'s new
+  `buildResumeText()` flattens `about` + every experience/education/
+  certification entry into the plain text that's actually embedded for
+  semantic matching (`matching/embeddings.service.ts` needed zero changes
+  — it just keeps reading `resumeText` same as before). `updateSeekerProfile`
+  no longer accepts a raw `resumeText` from the client at all.
+  `profileStrength`'s weights were rebalanced around the new sections
+  (experience/education entries now count, not just a filled text field).
+- **Phone number**: added end-to-end — `User.phone` (already existed,
+  unused) is now updatable via the same `POST /auth/me/profile` call
+  (pulled out before the SeekerProfile upsert, since it lives on a
+  different table) and returned from `GET /auth/me`/`toPublicUser`.
+- **New `POST /me/cv/improve`** (`cv/cv-ai.service.ts`, new) — per-field
+  "Improve with AI" for the Summary and each Experience entry's
+  description, returning 2 alternative rewrites. Same optional-`OPENAI_API_KEY`
+  posture and error handling as `blog-ai.service.ts`/`cv-parser.service.ts`
+  (confirmed live: fails with the same established "AI service returned an
+  error" message this app already shows elsewhere, since the configured
+  OpenAI account has no credits — expected, not a bug).
+- **CV upload auto-fill** (`cv-parser.service.ts`) now extracts structured
+  `experience`/`education` arrays instead of one `resumeText` blob, since
+  the new builder has nowhere to put a freeform blob anymore.
+- **CV PDF download** (`cv-pdf.service.ts`) now renders real EXPERIENCE/
+  EDUCATION/CERTIFICATIONS sections from the structured data instead of
+  dumping `resumeText` under one "EXPERIENCE & BACKGROUND" heading.
+- **Frontend**: new `apps/web/src/components/ResumeLivePreview.tsx` (pure,
+  data-in-data-out) and a full rewrite of
+  `apps/web/src/app/dashboard/profile/page.tsx` (kept the same URL/route —
+  it's linked from several other pages — just renamed to "Resume Builder"
+  in the sidebar): a SECTIONS nav (Contact/Summary/Experience/Education/
+  Skills/Certifications/Video/Links) with ✓/○ completion indicators, each
+  section's editor (repeatable Experience/Education/Certifications/Links
+  entries with move-up/down instead of a second drag-and-drop instance on
+  the same page), a tag-chip skills editor, and a live-updating preview
+  panel with a 3-color accent picker (one clean template, not multiple
+  full layouts — a deliberate scope cut from the mockup's implied
+  multi-template picker).
+
+**Verified**: both apps typecheck clean; `nest build` + `next build` both
+succeed (all 4 new/changed dashboard routes compile); confirmed via direct
+API calls — saved a full structured profile and confirmed `resumeText` was
+correctly derived and `profileStrength` computed, confirmed `phone` round-
+trips through `GET /auth/me`, confirmed `POST /me/cv/improve` fails with
+the expected established error message (no OpenAI credits), and confirmed
+`PATCH /applications/reorder` persists `priorityOrder` correctly and that
+`GET /applications` returns the new order (test data cleaned up after).
+**Not verified**: actual drag-and-drop interaction, AI suggestion UI
+flow, and the live preview panel's visual output — no browser automation
+tool is available in this environment, so these are typecheck/build-clean
+and API-correct but not interaction-tested.
+
+**To revert**: this is the largest single change this session — reverting
+cleanly means restoring the old flat-form `profile/page.tsx`, dropping the
+4 new `SeekerProfile` JSON columns and `Application.priorityOrder` (or
+`git revert` both migrations), removing `cv-ai.service.ts` and its
+controller/module wiring, reverting `cv-parser.service.ts`/
+`cv-pdf.service.ts` to their `resumeText`-only versions, removing the
+`recommended`/`interviews` pages and their sidebar entries, and restoring
+`applications/page.tsx` to its pre-toggle single-board version (dropping
+the `@dnd-kit/sortable` dependency too, since nothing else uses it).
+
+---
+
 ## 2026-08-30 — Company profile: tabs, follow, and reviews with company replies
 
 Requested via a screenshot of a richer company profile (Follow/Visit

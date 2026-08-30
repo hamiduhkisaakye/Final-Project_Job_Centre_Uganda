@@ -34,11 +34,37 @@ const styles = StyleSheet.create({
   paragraph: { fontSize: 10, lineHeight: 1.5, color: COLORS.ink },
   skillsWrap: { flexDirection: 'row', flexWrap: 'wrap', gap: 6 },
   skillPill: { backgroundColor: '#EAF2FA', color: COLORS.primary, fontSize: 9, paddingVertical: 4, paddingHorizontal: 9, borderRadius: 10 },
+  entry: { marginBottom: 10 },
+  entryTitleRow: { flexDirection: 'row', justifyContent: 'space-between' },
+  entryTitle: { fontSize: 10.5, fontFamily: 'Helvetica-Bold', color: COLORS.ink },
+  entryMeta: { fontSize: 9, color: COLORS.muted, marginBottom: 2 },
+  entryDates: { fontSize: 9, color: COLORS.muted },
   footer: { position: 'absolute', bottom: 16, left: 0, right: 0, textAlign: 'center', fontSize: 8, color: COLORS.muted },
 });
 
 interface CvUser {
   email: string;
+}
+
+interface CvExperienceEntry {
+  title: string;
+  company: string;
+  startDate?: string;
+  endDate?: string;
+  current?: boolean;
+  description?: string;
+}
+
+interface CvEducationEntry {
+  school: string;
+  degree?: string;
+  fieldOfStudy?: string;
+  endYear?: string;
+}
+
+interface CvCertificationEntry {
+  name: string;
+  issuer?: string;
 }
 
 interface CvProfile {
@@ -49,10 +75,16 @@ interface CvProfile {
   yearsExperience?: number | null;
   skills: unknown;
   resumeText?: string | null;
+  experience?: unknown;
+  education?: unknown;
+  certifications?: unknown;
 }
 
 function buildCvDocument(user: CvUser, profile: CvProfile) {
   const skills = Array.isArray(profile.skills) ? (profile.skills as string[]) : [];
+  const experience = Array.isArray(profile.experience) ? (profile.experience as CvExperienceEntry[]) : [];
+  const education = Array.isArray(profile.education) ? (profile.education as CvEducationEntry[]) : [];
+  const certifications = Array.isArray(profile.certifications) ? (profile.certifications as CvCertificationEntry[]) : [];
   const meta = [profile.location, profile.yearsExperience != null ? `${profile.yearsExperience} years experience` : null, user.email].filter(Boolean);
 
   return createElement(
@@ -97,12 +129,49 @@ function buildCvDocument(user: CvUser, profile: CvProfile) {
               ),
             )
           : null,
-        profile.resumeText
+        experience.length > 0
           ? createElement(
               View,
               null,
-              createElement(Text, { style: styles.sectionTitle }, 'EXPERIENCE & BACKGROUND'),
-              createElement(Text, { style: styles.paragraph }, profile.resumeText),
+              createElement(Text, { style: styles.sectionTitle }, 'EXPERIENCE'),
+              ...experience.map((e, i) =>
+                createElement(
+                  View,
+                  { style: styles.entry, key: i },
+                  createElement(
+                    View,
+                    { style: styles.entryTitleRow },
+                    createElement(Text, { style: styles.entryTitle }, `${e.title || ''} · ${e.company || ''}`),
+                    createElement(Text, { style: styles.entryDates }, `${e.startDate || ''} – ${e.current ? 'Present' : e.endDate || ''}`),
+                  ),
+                  e.description ? createElement(Text, { style: styles.paragraph }, e.description) : null,
+                ),
+              ),
+            )
+          : null,
+        education.length > 0
+          ? createElement(
+              View,
+              null,
+              createElement(Text, { style: styles.sectionTitle }, 'EDUCATION'),
+              ...education.map((ed, i) =>
+                createElement(
+                  View,
+                  { style: styles.entry, key: i },
+                  createElement(Text, { style: styles.entryTitle }, [ed.degree, ed.fieldOfStudy ? `in ${ed.fieldOfStudy}` : null].filter(Boolean).join(' ') || ed.school),
+                  createElement(Text, { style: styles.entryMeta }, `${ed.school}${ed.endYear ? ` · ${ed.endYear}` : ''}`),
+                ),
+              ),
+            )
+          : null,
+        certifications.length > 0
+          ? createElement(
+              View,
+              null,
+              createElement(Text, { style: styles.sectionTitle }, 'CERTIFICATIONS'),
+              ...certifications.map((c, i) =>
+                createElement(Text, { style: styles.paragraph, key: i }, `${c.name}${c.issuer ? ` — ${c.issuer}` : ''}`),
+              ),
             )
           : null,
       ),

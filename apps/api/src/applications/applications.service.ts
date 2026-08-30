@@ -105,9 +105,29 @@ export class ApplicationsService {
   async mine(seekerId: string) {
     return this.prisma.application.findMany({
       where: { seekerId },
-      orderBy: { submittedAt: 'desc' },
+      // Explicitly reordered applications (priorityOrder set via #reorder)
+      // sort first by that order; everything else falls back to newest
+      // first, same as before this field existed.
+      orderBy: [{ priorityOrder: { sort: 'asc', nulls: 'last' } }, { submittedAt: 'desc' }],
       include: { job: { include: { company: { select: { id: true, name: true, slug: true, logoUrl: true } } } } },
     });
+  }
+
+  // Seeker's own drag-to-reorder within a Kanban column — a personal
+  // display preference only, scoped to applications that are both theirs
+  // and still in the given stage (a stale drag from before the employer
+  // moved the card is silently ignored rather than erroring).
+  async reorder(seekerId: string, stage: ApplicationStage, orderedIds: string[]) {
+    const apps = await this.prisma.application.findMany({
+      where: { id: { in: orderedIds }, seekerId, stage },
+      select: { id: true },
+    });
+    const validIds = new Set(apps.map((a) => a.id));
+    const ordered = orderedIds.filter((id) => validIds.has(id));
+    await this.prisma.$transaction(
+      ordered.map((id, index) => this.prisma.application.update({ where: { id }, data: { priorityOrder: index } })),
+    );
+    return { success: true };
   }
 
   async forCompany(userId: string, jobId?: string) {
