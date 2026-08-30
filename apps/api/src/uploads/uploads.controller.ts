@@ -23,13 +23,15 @@ const LOGO_DIR = path.join(STORAGE_ROOT, 'logos');
 const AVATAR_DIR = path.join(STORAGE_ROOT, 'avatars');
 const VIDEO_DIR = path.join(STORAGE_ROOT, 'videos');
 const BLOG_DIR = path.join(STORAGE_ROOT, 'blog');
-for (const dir of [RESUME_DIR, LOGO_DIR, AVATAR_DIR, VIDEO_DIR, BLOG_DIR]) fs.mkdirSync(dir, { recursive: true });
+const CHAT_DIR = path.join(STORAGE_ROOT, 'chat');
+for (const dir of [RESUME_DIR, LOGO_DIR, AVATAR_DIR, VIDEO_DIR, BLOG_DIR, CHAT_DIR]) fs.mkdirSync(dir, { recursive: true });
 
 // Exported so cv.controller.ts's parse-only upload endpoint reuses the same
 // allow-list instead of duplicating it.
 export const RESUME_TYPES = new Set(['application/pdf', 'application/msword', 'application/vnd.openxmlformats-officedocument.wordprocessingml.document']);
-const IMAGE_TYPES = new Set(['image/png', 'image/jpeg', 'image/webp']);
+const IMAGE_TYPES = new Set(['image/png', 'image/jpeg', 'image/webp', 'image/gif']);
 const VIDEO_TYPES = new Set(['video/mp4', 'video/webm']);
+const CHAT_ATTACHMENT_TYPES = new Set([...IMAGE_TYPES, ...RESUME_TYPES]);
 
 function safeName(originalname: string) {
   return `${Date.now()}-${Math.round(Math.random() * 1e9)}${path.extname(originalname).toLowerCase()}`;
@@ -151,5 +153,30 @@ export class UploadsController {
   async uploadBlogCover(@UploadedFile() file?: Express.Multer.File) {
     if (!file) throw new BadRequestException('Attach a PNG, JPEG or WebP image under 2MB');
     return { coverImageUrl: `/uploads/blog/${file.filename}` };
+  }
+
+  // Both roles can attach a file to a chat message — unlike every other
+  // upload endpoint here, there's no profile/company row to persist onto;
+  // the URL is just embedded directly in the message (see
+  // chat.controller.ts#send / chat.gateway.ts#sendMessage).
+  @Post('chat-attachment')
+  @Roles('JOB_SEEKER', 'COMPANY')
+  @UseInterceptors(
+    FileInterceptor('file', {
+      storage: diskStorage({
+        destination: CHAT_DIR,
+        filename: (_req, file, cb) => cb(null, safeName(file.originalname)),
+      }),
+      limits: { fileSize: 10 * 1024 * 1024 },
+      fileFilter: (_req, file, cb) => cb(null, CHAT_ATTACHMENT_TYPES.has(file.mimetype)),
+    }),
+  )
+  async uploadChatAttachment(@UploadedFile() file?: Express.Multer.File) {
+    if (!file) throw new BadRequestException('Attach an image, PDF or Word document under 10MB');
+    return {
+      url: `/uploads/chat/${file.filename}`,
+      type: IMAGE_TYPES.has(file.mimetype) ? 'image' : 'file',
+      name: file.originalname,
+    };
   }
 }

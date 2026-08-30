@@ -41,7 +41,7 @@ function CardBody({ a, interview }: { a: Application; interview?: Interview }) {
       <div className="text-xs text-muted mb-2">{a.job?.company?.name} · {a.job?.location}</div>
       {interview && (
         <div className="bg-accent/15 text-ink text-[11px] font-semibold px-2 py-1 rounded mb-2">
-          📅 {new Date(interview.scheduledAt).toLocaleString([], { dateStyle: 'medium', timeStyle: 'short' })}
+          📅 {new Date(interview.scheduledAt!).toLocaleString([], { dateStyle: 'medium', timeStyle: 'short' })}
         </div>
       )}
       <div className="bg-ground text-ink/70 text-[11px] font-semibold px-2 py-0.5 rounded-full w-fit">
@@ -136,7 +136,7 @@ function ListRow({ a, interview, busy, onWithdraw, onMessage }: {
       </div>
       {interview && (
         <div className="hidden sm:block bg-accent/15 text-ink text-xs font-semibold px-2.5 py-1 rounded flex-none">
-          📅 {new Date(interview.scheduledAt).toLocaleDateString('en-GB', { day: 'numeric', month: 'short' })}
+          📅 {new Date(interview.scheduledAt!).toLocaleDateString('en-GB', { day: 'numeric', month: 'short' })}
         </div>
       )}
       <span className="badge badge-blue flex-none">{a.stage.replace('_', ' ')}</span>

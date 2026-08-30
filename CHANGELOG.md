@@ -11,6 +11,127 @@ changes, revert by restoring the described prior structure.
 
 ---
 
+## 2026-08-30 — All 10 suggested Messages/Interview Schedule features
+
+Implements every feature suggested from the earlier Messages and Interview
+Schedule screenshot review, at the largest-effort tier confirmed
+beforehand: enforced block + admin review queue for reports, and a full
+multi-slot interview redesign rather than keeping single-time scheduling.
+The single biggest change this session — 21 files, 2 new Prisma models,
+4 new modified models, 2 new AI endpoints, and a rewritten chat gateway.
+
+### Schema (migration `20260830150000_chat_and_interview_upgrades`)
+- `Conversation`: `starredBySeeker`/`starredByCompany`,
+  `blockedBySeeker`/`blockedByCompany` — independent per-viewer flags, not
+  one shared boolean, since a seeker starring/blocking a thread has no
+  bearing on how the company sees it.
+- New `ConversationReport` (+ `ReportStatus` enum) — same shape/spirit as
+  the existing job `ModerationQueue`.
+- `Message`: `attachmentUrl`/`attachmentType`/`attachmentName`.
+- `Interview.scheduledAt` is now nullable (null while `PROPOSED`, set once
+  a slot is confirmed) and `InterviewStatus` gained `PROPOSED`. New
+  `InterviewSlot` model holds the recruiter's candidate times — kept even
+  after one is picked, as a plain record of what was originally offered.
+  Every interview created before this feature has `scheduledAt` set and
+  status `SCHEDULED`, so nothing about existing data changes.
+
+### Messages (1–6)
+- **Search + Unread/Starred filters**: client-side over the already-loaded
+  conversation list (`components/MessagesPanel.tsx`) — no backend needed.
+- **Star**: `POST /conversations/:id/star` toggles the viewer's own flag.
+- **Block & report**: `POST /conversations/:id/block` (reason required)
+  sets the viewer's block flag *and* creates a `ConversationReport` in one
+  transaction — reporting without blocking isn't exposed in the UI, since
+  continuing to receive messages from someone you just reported isn't a
+  real option. `chat.service.ts#send` now checks both block flags and
+  throws 403 for either party once either side has blocked (confirmed live:
+  a blocked party's send attempt returns 403). `POST
+  /conversations/:id/unblock` undoes a mistaken block. New admin inbox
+  `GET/PATCH /admin/reports(/:id/resolve)` and
+  `apps/web/src/app/admin/reports/page.tsx`, with an open-count badge
+  added to the admin sidebar.
+- **"This conversation" context panel**
+  (`components/ConversationContextPanel.tsx`): job/company card, stage
+  badge, match score + assessment result (from the Application tied to
+  this thread — fetched once client-side, no new endpoint), video-resume-
+  sent status (already on the loaded Conversation), and quick actions
+  (View job posting — needed adding `slug` to the job select in
+  `chat.service.ts`, which `Conversation` never exposed before; Open my
+  application; Block & report).
+- **File/image attachments**: new `POST /uploads/chat-attachment`
+  (`uploads.controller.ts`, images + PDF/Word, 10MB cap, open to both
+  roles unlike every other upload endpoint which is role-locked), message
+  `body` can now be empty when an attachment is present.
+- **Typing indicator + read receipts**: `typing:start`/`typing:stop`
+  socket events (ephemeral, no schema). Read receipts needed *no* new
+  field — `Message.readAt` already existed and was already being set on
+  `conversation:join`; the only real change was broadcasting a
+  `message:read` event when `markRead` actually changes something, so the
+  original sender sees the ✓✓ update live instead of only on next reload.
+- **Online/offline presence**: deliberately scoped **per-conversation**
+  ("is the other party currently viewing this thread"), not globally
+  per-user — a seeker's "other party" is a company, which can have several
+  member users, so there's no single userId to track globally for that
+  side. `chat.gateway.ts` tracks room-viewer sets and broadcasts
+  `presence:update`. Caught and fixed a real bug in my own first draft
+  here: it originally tried to track presence by `Company.id` as if it
+  were a `User.id`, which doesn't correspond to any actual online user.
+
+### Interview Schedule (7–10)
+- **Multi-slot proposals**: `interviews.service.ts#propose` (replaces the
+  old `schedule()`) creates an interview `PROPOSED` with N `InterviewSlot`
+  rows; `#confirmSlot` (seeker) sets `scheduledAt`/`SCHEDULED` from the
+  chosen slot; `#requestReschedule` ("Suggest another time") just posts a
+  chat nudge back to the recruiter with no state change. Even a single
+  offered time now goes through this same accept step.
+  `components/ScheduleInterviewModal.tsx` redesigned around a repeatable
+  list of candidate times instead of one datetime field.
+- **Dedicated Interview Schedule page**
+  (`app/dashboard/interviews/page.tsx`, full rewrite): new
+  `components/InterviewCalendar.tsx` — a plain month grid with marked
+  dates, deliberately no calendar library for one page — alongside
+  "Needs your response" (pick-a-slot cards), "Upcoming", and "Past"
+  sections.
+- **"Join call"**: shown enabled once a `VIDEO_CALL` interview is within
+  15 minutes of starting; otherwise shown disabled with a "Opens in N
+  days/hours/min" caption, reusing `Interview.location` (already the
+  meeting-link field) — no new field needed.
+- **Prep panel**: job-description link, interviewer identity (the
+  scheduler — this app doesn't model named interviewer assignment), links
+  to the seeker's own resume/video (already on their profile), and new
+  `GET /interviews/:id/prep-questions` (`interview-ai.service.ts`, same
+  optional-`OPENAI_API_KEY` posture as every other AI feature this
+  session) for 5 AI-suggested likely questions.
+
+**Verified**: both apps typecheck clean; `nest build` + `next build` both
+succeed (all new/changed routes compile); extensive live API testing —
+star/unstar, attachment message send, block enforcement (403 confirmed),
+admin report list/resolve, the full propose→confirm flow (confirmed
+`scheduledAt` set to the *chosen* slot, not the first or last), `.ics`
+download and `/me/interviews` reflecting it, request-reschedule, and
+prep-questions' graceful failure (no OpenAI credits, same established
+error message as every other AI feature). **Additionally wrote a live
+Socket.IO test script** (two real authenticated connections, one seeker
+one company) to verify presence, typing, and read-receipt broadcasts
+actually fire correctly end-to-end — confirmed all three, and this test is
+what surfaced the Company.id/User.id presence bug caught and fixed above.
+Test data cleaned up afterward. **Not verified**: the rendered UI itself
+in a real browser (drag interactions aside, this entry has none, but
+visual layout/styling of the new calendar, context panel, and message
+bubbles) — no browser automation tool is available in this environment.
+
+**To revert**: this is the largest change this session — cleanly reverting
+means dropping the new Prisma models/fields (or `git revert` the
+migration), removing `interview-ai.service.ts` and its endpoint,
+restoring `chat.gateway.ts` to its pre-presence/typing version, reverting
+`ScheduleInterviewModal.tsx` and
+`interviews.service.ts` to single-time `schedule()`, removing
+`ConversationContextPanel.tsx`/`InterviewCalendar.tsx`/`admin/reports/`,
+and restoring `MessagesPanel.tsx` and `dashboard/interviews/page.tsx` to
+their pre-this-entry versions.
+
+---
+
 ## 2026-08-30 — Dynamic portal page titles + role-similarity in match scoring
 
 Two independent changes: replacing each portal's static header label with

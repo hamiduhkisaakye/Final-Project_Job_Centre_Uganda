@@ -115,9 +115,18 @@ enum NotificationType {
 }
 
 enum InterviewStatus {
+  // A recruiter has offered one or more candidate times (InterviewSlot
+  // rows) but the seeker hasn't picked one yet — scheduledAt is null in
+  // this state. Moves to SCHEDULED once a slot is confirmed.
+  PROPOSED
   SCHEDULED
   COMPLETED
   CANCELLED
+}
+
+enum ReportStatus {
+  OPEN
+  RESOLVED
 }
 
 model Conversation {
@@ -131,15 +140,46 @@ model Conversation {
   jobId         String
   lastMessageAt DateTime?
   createdAt     DateTime  @default(now())
+  // Personal, per-viewer flags — a seeker starring/blocking a thread has
+  // no bearing on how the company sees it, and vice versa, so these are
+  // two independent columns rather than one shared boolean.
+  starredBySeeker   Boolean @default(false)
+  starredByCompany  Boolean @default(false)
+  // A block is enforced server-side in chat.service.ts#send: whichever
+  // side is blocked cannot send further messages into this thread. The
+  // blocking party can still send (e.g. to explain why, or unblock later).
+  blockedBySeeker   Boolean @default(false)
+  blockedByCompany  Boolean @default(false)
 
-  company  Company   @relation(fields: [companyId], references: [id], onDelete: Cascade)
-  seeker   User      @relation(fields: [seekerId], references: [id], onDelete: Cascade)
-  job      Job       @relation(fields: [jobId], references: [id], onDelete: Cascade)
+  company  Company              @relation(fields: [companyId], references: [id], onDelete: Cascade)
+  seeker   User                 @relation(fields: [seekerId], references: [id], onDelete: Cascade)
+  job      Job                  @relation(fields: [jobId], references: [id], onDelete: Cascade)
   messages Message[]
+  reports  ConversationReport[]
 
   @@unique([companyId, seekerId, jobId])
   @@index([seekerId, lastMessageAt])
   @@index([companyId, lastMessageAt])
+}
+
+// Feeds the admin "Reports" inbox — same shape/spirit as ModerationQueue
+// for jobs, but conversations are reported by a participant rather than
+// auto-flagged.
+model ConversationReport {
+  id             String       @id @default(uuid())
+  conversationId String
+  reporterId     String
+  reason         String
+  status         ReportStatus @default(OPEN)
+  createdAt      DateTime     @default(now())
+  resolvedAt     DateTime?
+  resolvedById   String?
+
+  conversation Conversation @relation(fields: [conversationId], references: [id], onDelete: Cascade)
+  reporter     User         @relation("ReportReporter", fields: [reporterId], references: [id], onDelete: Cascade)
+  resolvedBy   User?        @relation("ReportResolver", fields: [resolvedById], references: [id])
+
+  @@index([status])
 }
 
 model Message {
@@ -152,6 +192,11 @@ model Message {
   // system notice in MessagesPanel instead of a normal colored bubble.
   isSystem       Boolean   @default(false)
   readAt         DateTime?
+  // A message can be an attachment with no text (body is then "") or text
+  // with an attachment alongside it — never a separate message type.
+  attachmentUrl  String?
+  attachmentType String?
+  attachmentName String?
   createdAt      DateTime  @default(now())
 
   conversation Conversation @relation(fields: [conversationId], references: [id], onDelete: Cascade)
@@ -302,7 +347,11 @@ model AssessmentAttempt {
 model Interview {
   id              String          @id @default(uuid())
   applicationId   String
-  scheduledAt     DateTime
+  // Null while status is PROPOSED (no confirmed time yet — see `slots`
+  // below); set once the seeker confirms one, and status flips to
+  // SCHEDULED. Every interview created before this feature existed has
+  // scheduledAt set and status SCHEDULED, so nothing about them changes.
+  scheduledAt     DateTime?
   durationMinutes Int             @default(30)
   mode            InterviewMode
   // Meeting link (VIDEO_CALL), phone number (PHONE), or address (IN_PERSON).
@@ -313,11 +362,26 @@ model Interview {
   createdAt       DateTime        @default(now())
   updatedAt       DateTime        @updatedAt
 
-  application Application @relation(fields: [applicationId], references: [id], onDelete: Cascade)
-  createdBy   User        @relation(fields: [createdById], references: [id])
+  application Application    @relation(fields: [applicationId], references: [id], onDelete: Cascade)
+  createdBy   User           @relation(fields: [createdById], references: [id])
+  slots       InterviewSlot[]
 
   @@index([applicationId])
   @@index([scheduledAt])
+}
+
+// The recruiter's candidate times while an Interview is PROPOSED. Kept
+// even after one is picked (not deleted) — a simple, honest record of
+// what was originally offered.
+model InterviewSlot {
+  id          String   @id @default(uuid())
+  interviewId String
+  startsAt    DateTime
+  createdAt   DateTime @default(now())
+
+  interview Interview @relation(fields: [interviewId], references: [id], onDelete: Cascade)
+
+  @@index([interviewId])
 }
 
 model User {
@@ -347,6 +411,8 @@ model User {
   blogPosts           BlogPost[]
   companyFollows      CompanyFollow[]
   companyReviews      CompanyReview[]
+  reportsFiled        ConversationReport[] @relation("ReportReporter")
+  reportsResolved     ConversationReport[] @relation("ReportResolver")
 
   @@index([role, status])
 }

@@ -31,8 +31,8 @@ export default function SeekerDashboardPage() {
   }, []); // eslint-disable-line react-hooks/exhaustive-deps
 
   const upcomingInterviews = interviews
-    .filter((i) => i.status === 'SCHEDULED' && new Date(i.scheduledAt) > new Date())
-    .sort((a, b) => new Date(a.scheduledAt).getTime() - new Date(b.scheduledAt).getTime())
+    .filter((i) => i.status === 'SCHEDULED' && i.scheduledAt && new Date(i.scheduledAt) > new Date())
+    .sort((a, b) => new Date(a.scheduledAt!).getTime() - new Date(b.scheduledAt!).getTime())
     .slice(0, 3);
 
   const strength = user?.seekerProfile?.profileStrength ?? 0;
@@ -90,7 +90,7 @@ export default function SeekerDashboardPage() {
                 <div>
                   <div className="text-sm font-semibold">{i.application?.job.title}</div>
                   <div className="text-xs text-muted">
-                    {i.application?.job.company?.name} · {new Date(i.scheduledAt).toLocaleString([], { dateStyle: 'medium', timeStyle: 'short' })} · {i.mode.replace('_', ' ').toLowerCase()}
+                    {i.application?.job.company?.name} · {new Date(i.scheduledAt!).toLocaleString([], { dateStyle: 'medium', timeStyle: 'short' })} · {i.mode.replace('_', ' ').toLowerCase()}
                   </div>
                 </div>
                 <button

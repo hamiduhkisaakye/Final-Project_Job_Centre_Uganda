@@ -63,7 +63,13 @@ function Shell({ children }: { children: React.ReactNode }) {
     // /me/recommendations' own pool size, close enough for a nav badge.
     api<{ job: Job; score: number }[]>('/me/recommendations?limit=50').then((r) => setRecCount(r.length)).catch(() => undefined);
     api<Interview[]>('/me/interviews')
-      .then((list) => setInterviewCount(list.filter((i) => i.status === 'SCHEDULED' && new Date(i.scheduledAt) > new Date()).length))
+      .then((list) =>
+        setInterviewCount(
+          list.filter(
+            (i) => i.status === 'PROPOSED' || (i.status === 'SCHEDULED' && i.scheduledAt && new Date(i.scheduledAt) > new Date()),
+          ).length,
+        ),
+      )
       .catch(() => undefined);
   }, []); // eslint-disable-line react-hooks/exhaustive-deps
 

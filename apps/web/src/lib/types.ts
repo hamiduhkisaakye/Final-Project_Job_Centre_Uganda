@@ -4,7 +4,7 @@ export type JobStatus = 'DRAFT' | 'PENDING_REVIEW' | 'PUBLISHED' | 'PAUSED' | 'C
 export type ApplicationStage = 'APPLIED' | 'IN_REVIEW' | 'INTERVIEW' | 'OFFER' | 'HIRED' | 'REJECTED' | 'WITHDRAWN';
 export type VerificationStatus = 'UNVERIFIED' | 'PENDING' | 'VERIFIED' | 'REJECTED';
 export type InterviewMode = 'VIDEO_CALL' | 'PHONE' | 'IN_PERSON';
-export type InterviewStatus = 'SCHEDULED' | 'COMPLETED' | 'CANCELLED';
+export type InterviewStatus = 'PROPOSED' | 'SCHEDULED' | 'COMPLETED' | 'CANCELLED';
 
 export interface Company {
   id: string;
@@ -166,6 +166,9 @@ export interface Message {
   body: string;
   isSystem: boolean;
   readAt?: string | null;
+  attachmentUrl?: string | null;
+  attachmentType?: string | null;
+  attachmentName?: string | null;
   createdAt: string;
 }
 
@@ -229,9 +232,29 @@ export interface Conversation {
   createdAt: string;
   company: Pick<Company, 'id' | 'name' | 'slug' | 'logoUrl'>;
   seeker: { id: string; email: string; seekerProfile?: SeekerProfile | null };
-  job: Pick<Job, 'id' | 'title'>;
+  job: Pick<Job, 'id' | 'title' | 'slug'>;
   lastMessage?: Message | null;
   unreadCount: number;
+  // Collapsed to the viewer's own side — see chat.service.ts#myConversations.
+  starred: boolean;
+  blocked: boolean;
+}
+
+export interface ConversationReport {
+  id: string;
+  conversationId: string;
+  reporterId: string;
+  reason: string;
+  status: 'OPEN' | 'RESOLVED';
+  createdAt: string;
+  resolvedAt?: string | null;
+  resolvedById?: string | null;
+  conversation: {
+    company: Pick<Company, 'name' | 'slug'>;
+    seeker: { email: string; seekerProfile?: { fullName?: string | null } | null };
+    job: Pick<Job, 'title'>;
+  };
+  reporter: { email: string; role: UserRole };
 }
 
 export interface AssessmentQuestion {
@@ -264,10 +287,18 @@ export interface AssessmentAttempt {
   assessment?: Pick<Assessment, 'id' | 'title' | 'passScore'>;
 }
 
+export interface InterviewSlot {
+  id: string;
+  interviewId: string;
+  startsAt: string;
+  createdAt: string;
+}
+
 export interface Interview {
   id: string;
   applicationId: string;
-  scheduledAt: string;
+  // Null while status is PROPOSED — no time confirmed yet, see `slots`.
+  scheduledAt?: string | null;
   durationMinutes: number;
   mode: InterviewMode;
   location?: string | null;
@@ -275,6 +306,8 @@ export interface Interview {
   status: InterviewStatus;
   createdById: string;
   createdAt: string;
+  slots?: InterviewSlot[];
+  createdBy?: { id: string; email: string };
   application?: {
     id: string;
     seekerId: string;

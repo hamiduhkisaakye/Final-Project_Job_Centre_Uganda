@@ -1,9 +1,10 @@
-import { ForbiddenException, Injectable, NotFoundException } from '@nestjs/common';
+import { BadRequestException, ForbiddenException, Injectable, NotFoundException } from '@nestjs/common';
 import { Interview, InterviewMode, InterviewStatus } from '@prisma/client';
 import { PrismaService } from '../prisma/prisma.service';
 import { CompaniesService } from '../companies/companies.service';
 import { ChatService } from '../chat/chat.service';
 import { ChatGateway } from '../chat/chat.gateway';
+import { InterviewAiService } from './interview-ai.service';
 import { JwtUser } from '../auth/decorators/current-user.decorator';
 
 function pad(n: number) {
@@ -30,6 +31,7 @@ export class InterviewsService {
     private companies: CompaniesService,
     private chat: ChatService,
     private chatGateway: ChatGateway,
+    private interviewAi: InterviewAiService,
   ) {}
 
   private async assertApplicationAccess(applicationId: string, user: JwtUser) {
@@ -45,35 +47,43 @@ export class InterviewsService {
     return app;
   }
 
-  async schedule(
+  // Replaces the old single-fixed-time `schedule()` — a recruiter now
+  // always offers one or more candidate times and the interview sits
+  // PROPOSED until the seeker confirms one (see confirmSlot below). Even a
+  // single offered time goes through this same accept step, matching the
+  // "Interview Invitation… Accept / Suggest another time" chat card.
+  async propose(
     user: JwtUser,
     applicationId: string,
-    dto: { scheduledAt: string; durationMinutes?: number; mode: InterviewMode; location?: string; notes?: string },
+    dto: { slots: string[]; durationMinutes?: number; mode: InterviewMode; location?: string; notes?: string },
   ) {
     if (user.role !== 'COMPANY') throw new ForbiddenException('Only the hiring company can schedule interviews');
+    if (!dto.slots?.length) throw new BadRequestException('Offer at least one candidate time');
     const app = await this.assertApplicationAccess(applicationId, user);
 
     const interview = await this.prisma.interview.create({
       data: {
         applicationId,
-        scheduledAt: new Date(dto.scheduledAt),
+        status: 'PROPOSED',
         durationMinutes: dto.durationMinutes ?? 30,
         mode: dto.mode,
         location: dto.location,
         notes: dto.notes,
         createdById: user.sub,
+        slots: { create: dto.slots.map((s) => ({ startsAt: new Date(s) })) },
       },
+      include: { slots: { orderBy: { startsAt: 'asc' } } },
     });
 
     // Auto-post into the existing per-job chat thread (Phase 2) so the
     // seeker sees the interview with full conversation context, not just
-    // an isolated notification. Best-effort — scheduling still succeeds
-    // if this fails for any reason.
+    // an isolated notification. Best-effort — proposing still succeeds if
+    // this fails for any reason.
     try {
       const conversation = await this.chat.startConversation(user, { seekerId: app.seekerId, jobId: app.jobId });
-      const when = interview.scheduledAt.toLocaleString('en-GB', { dateStyle: 'medium', timeStyle: 'short' });
       const mode = interview.mode.replace('_', ' ').toLowerCase();
-      const body = `📅 Interview scheduled for ${when} (${interview.durationMinutes} min, ${mode}).${interview.location ? ` ${interview.location}` : ''}`;
+      const times = interview.slots.map((s) => s.startsAt.toLocaleString('en-GB', { dateStyle: 'medium', timeStyle: 'short' })).join(' · ');
+      const body = `📅 Interview requested (${interview.durationMinutes} min, ${mode}). Proposed times: ${times}${interview.location ? ` — ${interview.location}` : ''}`;
       const message = await this.chat.send(conversation.id, user.sub, body);
       this.chatGateway.broadcastMessage(conversation.id, message);
     } catch {
@@ -83,9 +93,73 @@ export class InterviewsService {
     return interview;
   }
 
+  // Seeker picks one of the recruiter's offered times — flips the
+  // interview from PROPOSED to SCHEDULED and sets the confirmed time.
+  async confirmSlot(user: JwtUser, interviewId: string, slotId: string) {
+    if (user.role !== 'JOB_SEEKER') throw new ForbiddenException('Only the candidate can confirm a time');
+    const interview = await this.prisma.interview.findUnique({
+      where: { id: interviewId },
+      include: { application: { include: { job: true } }, slots: true },
+    });
+    if (!interview) throw new NotFoundException('Interview not found');
+    if (interview.application.seekerId !== user.sub) throw new ForbiddenException('Not your interview');
+    if (interview.status !== 'PROPOSED') throw new BadRequestException('This interview is not awaiting confirmation');
+    const slot = interview.slots.find((s) => s.id === slotId);
+    if (!slot) throw new BadRequestException('That slot is not part of this interview');
+
+    const updated = await this.prisma.interview.update({
+      where: { id: interviewId },
+      data: { status: 'SCHEDULED', scheduledAt: slot.startsAt },
+    });
+
+    try {
+      const conversation = await this.chat.startConversation(user, {
+        companyId: interview.application.job.companyId,
+        jobId: interview.application.jobId,
+      });
+      const when = slot.startsAt.toLocaleString('en-GB', { dateStyle: 'medium', timeStyle: 'short' });
+      const message = await this.chat.send(conversation.id, user.sub, `✅ Confirmed for ${when}. See you then!`);
+      this.chatGateway.broadcastMessage(conversation.id, message);
+    } catch {
+      /* non-critical */
+    }
+
+    return updated;
+  }
+
+  // "Suggest another time" — no schema state change, just a chat nudge
+  // back to the recruiter, who can propose() again with new times.
+  async requestReschedule(user: JwtUser, interviewId: string, note?: string) {
+    if (user.role !== 'JOB_SEEKER') throw new ForbiddenException('Only the candidate can request a different time');
+    const interview = await this.prisma.interview.findUnique({
+      where: { id: interviewId },
+      include: { application: { include: { job: true } } },
+    });
+    if (!interview) throw new NotFoundException('Interview not found');
+    if (interview.application.seekerId !== user.sub) throw new ForbiddenException('Not your interview');
+
+    try {
+      const conversation = await this.chat.startConversation(user, {
+        companyId: interview.application.job.companyId,
+        jobId: interview.application.jobId,
+      });
+      const body = `🔁 Could we find another time for the interview?${note ? ` ${note}` : ''}`;
+      const message = await this.chat.send(conversation.id, user.sub, body);
+      this.chatGateway.broadcastMessage(conversation.id, message);
+    } catch {
+      /* non-critical */
+    }
+
+    return { success: true };
+  }
+
   async list(user: JwtUser, applicationId: string) {
     await this.assertApplicationAccess(applicationId, user);
-    return this.prisma.interview.findMany({ where: { applicationId }, orderBy: { scheduledAt: 'asc' } });
+    return this.prisma.interview.findMany({
+      where: { applicationId },
+      orderBy: { createdAt: 'desc' },
+      include: { slots: { orderBy: { startsAt: 'asc' } } },
+    });
   }
 
   async update(
@@ -121,14 +195,23 @@ export class InterviewsService {
   }
 
   async myInterviews(user: JwtUser) {
+    // Newest-first rather than by scheduledAt — a PROPOSED interview has
+    // no scheduledAt yet (it's null until confirmed), so ordering by it
+    // would bury pending-response interviews unpredictably among nulls.
+    // The frontend buckets into "Needs your response"/"Upcoming"/"Past".
     if (user.role === 'JOB_SEEKER') {
       return this.prisma.interview.findMany({
         where: { application: { seekerId: user.sub } },
-        orderBy: { scheduledAt: 'asc' },
+        orderBy: { createdAt: 'desc' },
         include: {
           application: {
             include: { job: { include: { company: { select: { id: true, name: true, slug: true, logoUrl: true } } } } },
           },
+          slots: { orderBy: { startsAt: 'asc' } },
+          // "Interviewer" for the prep panel — this app doesn't model named
+          // interviewer assignment, so the person who scheduled it stands
+          // in for "who to expect".
+          createdBy: { select: { id: true, email: true } },
         },
       });
     }
@@ -136,7 +219,7 @@ export class InterviewsService {
       const company = await this.companies.myCompany(user.sub);
       return this.prisma.interview.findMany({
         where: { application: { job: { companyId: company.id } } },
-        orderBy: { scheduledAt: 'asc' },
+        orderBy: { createdAt: 'desc' },
         include: {
           application: {
             include: {
@@ -144,6 +227,7 @@ export class InterviewsService {
               job: { select: { id: true, title: true } },
             },
           },
+          slots: { orderBy: { startsAt: 'asc' } },
         },
       });
     }
@@ -162,10 +246,11 @@ export class InterviewsService {
     if (user.role === 'COMPANY') {
       await this.companies.assertMember(interview.application.job.companyId, user.sub);
     }
-    return this.buildIcs(interview as InterviewWithContext);
+    if (!interview.scheduledAt) throw new BadRequestException('This interview time is not confirmed yet');
+    return this.buildIcs(interview as InterviewWithContext & { scheduledAt: Date });
   }
 
-  private buildIcs(interview: InterviewWithContext): string {
+  private buildIcs(interview: InterviewWithContext & { scheduledAt: Date }): string {
     const dtStart = formatIcsDate(interview.scheduledAt);
     const dtEnd = formatIcsDate(new Date(interview.scheduledAt.getTime() + interview.durationMinutes * 60000));
     const summary = `Interview: ${interview.application.job.title} at ${interview.application.job.company.name}`;
@@ -184,5 +269,22 @@ export class InterviewsService {
       'END:VEVENT',
       'END:VCALENDAR',
     ].join('\r\n');
+  }
+
+  // Prep panel's AI-suggested questions — the job description/skills/links
+  // side of the panel is otherwise just data the frontend already has
+  // (job.slug from this same interview, the seeker's own resume/video from
+  // /auth/me), so this is the one piece that genuinely needs a server call.
+  async prepQuestions(user: JwtUser, interviewId: string) {
+    const interview = await this.prisma.interview.findUnique({
+      where: { id: interviewId },
+      include: { application: { include: { job: true } } },
+    });
+    if (!interview) throw new NotFoundException('Interview not found');
+    if (interview.application.seekerId !== user.sub) throw new ForbiddenException('Not your interview');
+    return this.interviewAi.likelyQuestions({
+      title: interview.application.job.title,
+      description: interview.application.job.description,
+    });
   }
 }

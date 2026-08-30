@@ -46,7 +46,7 @@ export class ChatService {
         // chat thread can show a "View profile" panel without a second
         // request — see MessagesPanel.tsx.
         seeker: { select: { id: true, email: true, seekerProfile: true } },
-        job: { select: { id: true, title: true } },
+        job: { select: { id: true, title: true, slug: true } },
       },
     });
   }
@@ -66,7 +66,7 @@ export class ChatService {
         // chat thread can show a "View profile" panel without a second
         // request — see MessagesPanel.tsx.
         seeker: { select: { id: true, email: true, seekerProfile: true } },
-        job: { select: { id: true, title: true } },
+        job: { select: { id: true, title: true, slug: true } },
         messages: { orderBy: { createdAt: 'desc' }, take: 1 },
       },
     });
@@ -83,7 +83,68 @@ export class ChatService {
       lastMessage: c.messages[0] || null,
       messages: undefined,
       unreadCount: unreadByConversation.get(c.id) || 0,
+      // Collapsed to the viewer's own perspective — a seeker never sees
+      // starredByCompany, and vice versa.
+      starred: user.role === 'JOB_SEEKER' ? c.starredBySeeker : c.starredByCompany,
+      blocked: c.blockedBySeeker || c.blockedByCompany,
     }));
+  }
+
+  async toggleStar(conversationId: string, user: JwtUser) {
+    const conversation = await this.assertParticipant(conversationId, user);
+    const field = user.role === 'JOB_SEEKER' ? 'starredBySeeker' : 'starredByCompany';
+    const updated = await this.prisma.conversation.update({
+      where: { id: conversationId },
+      data: { [field]: !conversation[field] },
+    });
+    return { starred: user.role === 'JOB_SEEKER' ? updated.starredBySeeker : updated.starredByCompany };
+  }
+
+  // Combined per the product decision — reporting a conversation always
+  // blocks it too, since continuing to receive messages from someone
+  // you've just reported isn't a real option. Blocking alone (no report)
+  // isn't exposed in the UI, but unblock() below still allows undoing a
+  // mistaken block.
+  async blockAndReport(conversationId: string, user: JwtUser, reason: string) {
+    await this.assertParticipant(conversationId, user);
+    const field = user.role === 'JOB_SEEKER' ? 'blockedBySeeker' : 'blockedByCompany';
+    await this.prisma.$transaction([
+      this.prisma.conversation.update({ where: { id: conversationId }, data: { [field]: true } }),
+      this.prisma.conversationReport.create({ data: { conversationId, reporterId: user.sub, reason } }),
+    ]);
+    return { success: true };
+  }
+
+  async unblock(conversationId: string, user: JwtUser) {
+    await this.assertParticipant(conversationId, user);
+    const field = user.role === 'JOB_SEEKER' ? 'blockedBySeeker' : 'blockedByCompany';
+    await this.prisma.conversation.update({ where: { id: conversationId }, data: { [field]: false } });
+    return { success: true };
+  }
+
+  // Admin "Reports" inbox — same shape/spirit as the job moderation queue.
+  async listReports(status?: 'OPEN' | 'RESOLVED') {
+    return this.prisma.conversationReport.findMany({
+      where: status ? { status } : undefined,
+      orderBy: { createdAt: 'desc' },
+      include: {
+        conversation: {
+          include: {
+            company: { select: { name: true, slug: true } },
+            seeker: { select: { email: true, seekerProfile: { select: { fullName: true } } } },
+            job: { select: { title: true } },
+          },
+        },
+        reporter: { select: { email: true, role: true } },
+      },
+    });
+  }
+
+  async resolveReport(id: string, adminId: string) {
+    return this.prisma.conversationReport.update({
+      where: { id },
+      data: { status: 'RESOLVED', resolvedAt: new Date(), resolvedById: adminId },
+    });
   }
 
   async assertParticipant(conversationId: string, user: JwtUser) {
@@ -114,12 +175,35 @@ export class ChatService {
     };
   }
 
-  async send(conversationId: string, senderId: string, body: string, isSystem = false) {
+  async send(
+    conversationId: string,
+    senderId: string,
+    body: string,
+    isSystem = false,
+    attachment?: { url: string; type: string; name: string },
+  ) {
     const trimmed = body.trim();
-    if (!trimmed) throw new BadRequestException('Message body cannot be empty');
+    if (!trimmed && !attachment) throw new BadRequestException('Message body cannot be empty');
+
+    if (!isSystem) {
+      const existing = await this.prisma.conversation.findUnique({ where: { id: conversationId } });
+      if (existing?.blockedBySeeker || existing?.blockedByCompany) {
+        throw new ForbiddenException('This conversation has been blocked');
+      }
+    }
 
     const [message] = await this.prisma.$transaction([
-      this.prisma.message.create({ data: { conversationId, senderId, body: trimmed, isSystem } }),
+      this.prisma.message.create({
+        data: {
+          conversationId,
+          senderId,
+          body: trimmed,
+          isSystem,
+          attachmentUrl: attachment?.url,
+          attachmentType: attachment?.type,
+          attachmentName: attachment?.name,
+        },
+      }),
       this.prisma.conversation.update({ where: { id: conversationId }, data: { lastMessageAt: new Date() } }),
     ]);
 
@@ -157,10 +241,13 @@ export class ChatService {
     return message;
   }
 
-  async markRead(conversationId: string, userId: string) {
-    await this.prisma.message.updateMany({
+  // Returns how many rows actually flipped to read, so the caller (the
+  // gateway) only broadcasts a read-receipt event when something changed.
+  async markRead(conversationId: string, userId: string): Promise<number> {
+    const result = await this.prisma.message.updateMany({
       where: { conversationId, senderId: { not: userId }, readAt: null },
       data: { readAt: new Date() },
     });
+    return result.count;
   }
 }

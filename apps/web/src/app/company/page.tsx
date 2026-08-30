@@ -54,8 +54,8 @@ export default function CompanyDashboardPage() {
   const totalApplications = jobs.reduce((s, j) => s + j.applicationsCount, 0);
   const conversion = totalViews > 0 ? ((totalApplications / totalViews) * 100).toFixed(1) : '0.0';
   const upcomingInterviews = interviews
-    .filter((i) => i.status === 'SCHEDULED' && new Date(i.scheduledAt) > new Date())
-    .sort((a, b) => new Date(a.scheduledAt).getTime() - new Date(b.scheduledAt).getTime())
+    .filter((i) => i.status === 'SCHEDULED' && i.scheduledAt && new Date(i.scheduledAt) > new Date())
+    .sort((a, b) => new Date(a.scheduledAt!).getTime() - new Date(b.scheduledAt!).getTime())
     .slice(0, 3);
 
   return (
@@ -87,7 +87,7 @@ export default function CompanyDashboardPage() {
                     {i.application?.seeker?.seekerProfile?.fullName || i.application?.seeker?.email} · {i.application?.job.title}
                   </div>
                   <div className="text-xs text-muted">
-                    {new Date(i.scheduledAt).toLocaleString([], { dateStyle: 'medium', timeStyle: 'short' })} · {i.mode.replace('_', ' ').toLowerCase()}
+                    {new Date(i.scheduledAt!).toLocaleString([], { dateStyle: 'medium', timeStyle: 'short' })} · {i.mode.replace('_', ' ').toLowerCase()}
                   </div>
                 </div>
                 <button

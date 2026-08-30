@@ -11,8 +11,10 @@ import SeekerAvatar from '@/components/SeekerAvatar';
 import ScheduleInterviewModal from '@/components/ScheduleInterviewModal';
 import type { Application, ApplicationStage, Conversation, Interview, Job } from '@/lib/types';
 
+// Only ever called with a SCHEDULED interview (see interviewsByApp below,
+// which only keeps SCHEDULED ones) — scheduledAt is guaranteed set there.
 function formatInterviewChip(i: Interview) {
-  const d = new Date(i.scheduledAt);
+  const d = new Date(i.scheduledAt!);
   return d.toLocaleDateString('en-GB', { day: 'numeric', month: 'short' }) + ' · ' + d.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
 }
 
@@ -76,7 +78,7 @@ function CandidateCard({ a, busy, interview, onMessage, onView, onSchedule }: {
           onPointerDown={(e) => e.stopPropagation()}
           className="text-[11px] text-primary font-semibold"
         >
-          📅 {interview ? 'Reschedule' : 'Schedule'}
+          📅 {interview ? 'Propose new time' : 'Propose interview'}
         </button>
       </div>
     </div>
