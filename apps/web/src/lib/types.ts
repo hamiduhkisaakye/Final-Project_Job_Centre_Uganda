@@ -46,9 +46,12 @@ export interface Job {
   salaryVerifiedAt?: string | null;
   skills: string[];
   assessmentId?: string | null;
-  assessment?: Pick<Assessment, 'id' | 'title'> | null;
+  // Public shape only — never carries question text/answers. See
+  // jobs.service.ts#findBySlug.
+  assessment?: { title: string; questionCount: number } | null;
   status: JobStatus;
   publishedAt?: string | null;
+  expiresAt?: string | null;
   viewsCount: number;
   applicationsCount: number;
   createdAt: string;

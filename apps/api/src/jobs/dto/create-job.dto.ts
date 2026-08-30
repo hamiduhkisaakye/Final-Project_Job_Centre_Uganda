@@ -1,4 +1,4 @@
-import { IsArray, IsBoolean, IsEnum, IsInt, IsOptional, IsString, Min } from 'class-validator';
+import { IsArray, IsBoolean, IsDateString, IsEnum, IsInt, IsOptional, IsString, Min } from 'class-validator';
 import { EmploymentType } from '@prisma/client';
 
 export class CreateJobDto {
@@ -60,4 +60,12 @@ export class CreateJobDto {
   @IsOptional()
   @IsString()
   assessmentId?: string;
+
+  // Optional application deadline — shown on the job detail page as
+  // "Closes in N days" when set. Applications aren't actually blocked past
+  // this date; it's informational only (matches how moderation/status
+  // already governs whether a job accepts applications).
+  @IsOptional()
+  @IsDateString()
+  expiresAt?: string;
 }

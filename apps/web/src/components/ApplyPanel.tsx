@@ -1,6 +1,7 @@
 'use client';
 
-import { useEffect, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
+import { createPortal } from 'react-dom';
 import { useRouter } from 'next/navigation';
 import { useAuth, useApi } from '@/lib/auth-context';
 import { useSavedJobs } from '@/lib/saved-jobs-context';
@@ -11,6 +12,9 @@ import type { AssessmentAttempt, Conversation, Job } from '@/lib/types';
 interface MatchResult {
   score: number;
   reasons: { positive: boolean; text: string }[];
+  // Only present once the job has enough real applicants to rank against —
+  // see jobs.service.ts#topPercentFor.
+  topPercent?: number;
 }
 
 export default function ApplyPanel({ job }: { job: Job }) {
@@ -29,6 +33,20 @@ export default function ApplyPanel({ job }: { job: Job }) {
   const [error, setError] = useState<string | null>(null);
   const [assessmentPassed, setAssessmentPassed] = useState(false);
   const [showAssessment, setShowAssessment] = useState(false);
+  const panelRef = useRef<HTMLDivElement>(null);
+  // The primary Apply now / Save job buttons live in the job header (see
+  // apps/web/src/app/jobs/[slug]/page.tsx's #job-header-actions div) so
+  // they sit alongside the title/salary, matching the mockup — but the
+  // actual apply flow (cover letter form, assessment gate, confirmation)
+  // stays here in the sidebar rather than duplicating it as a modal. A
+  // portal lets one component drive both without lifting all this state
+  // into the server-rendered page. document.getElementById only resolves
+  // client-side, so this stays null through SSR and the buttons appear
+  // right after hydration, same as other client-only widgets in this app.
+  const [headerActionsEl, setHeaderActionsEl] = useState<HTMLElement | null>(null);
+  useEffect(() => {
+    setHeaderActionsEl(document.getElementById('job-header-actions'));
+  }, []);
 
   useEffect(() => {
     if (!user || user.role !== 'JOB_SEEKER') return;
@@ -74,8 +92,17 @@ export default function ApplyPanel({ job }: { job: Job }) {
     toggleSaveGlobal(job.id);
   }
 
+  function handleApplyClick() {
+    if (authLoading) return;
+    if (!user) return router.push(`/login?next=/jobs/${job.slug}`);
+    panelRef.current?.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+    if (user.role !== 'JOB_SEEKER') return setError('Only job seeker accounts can apply');
+    if (job.assessmentId && !assessmentPassed) return setShowAssessment(true);
+    setShowForm(true);
+  }
+
   return (
-    <div className="flex flex-col gap-4">
+    <div className="flex flex-col gap-4" ref={panelRef}>
       <div className="card p-6">
         {applied ? (
           <div className="text-center py-2">
@@ -110,28 +137,11 @@ export default function ApplyPanel({ job }: { job: Job }) {
           </div>
         ) : (
           <div className="flex flex-col gap-2.5">
-            <button
-              className="btn-primary w-full"
-              onClick={() => {
-                if (authLoading) return;
-                if (!user) return router.push(`/login?next=/jobs/${job.slug}`);
-                if (user.role !== 'JOB_SEEKER') return setError('Only job seeker accounts can apply');
-                if (job.assessmentId && !assessmentPassed) return setShowAssessment(true);
-                setShowForm(true);
-              }}
-            >
-              Apply now
-            </button>
             {job.assessmentId && !assessmentPassed && (
               <p className="text-xs text-muted text-center">📝 This role requires passing a short skills assessment to apply.</p>
             )}
             {job.assessmentId && assessmentPassed && (
               <p className="text-xs text-success text-center">✓ You&apos;ve passed the required assessment for this role.</p>
-            )}
-            {(!user || user.role === 'JOB_SEEKER') && (
-              <button className="btn-secondary w-full" onClick={toggleSave}>
-                {saved ? '★ Saved' : '☆ Save job'}
-              </button>
             )}
             {(!user || user.role === 'JOB_SEEKER') && (
               <button className="btn-secondary w-full" onClick={messageCompany}>
@@ -157,17 +167,22 @@ export default function ApplyPanel({ job }: { job: Job }) {
             </div>
             <div>
               <div className="font-semibold">{match.score >= 70 ? 'Strong match' : match.score >= 45 ? 'Fair match' : 'Limited match'}</div>
-              <div className="text-xs text-muted">Based on your profile</div>
+              <div className="text-xs text-muted">
+                {match.topPercent != null ? `Top ${match.topPercent}% of applicants so far` : 'Based on your profile'}
+              </div>
             </div>
           </div>
           <div className="text-[11px] font-bold tracking-wide text-muted mb-2">WHY YOU MATCH</div>
-          <div className="flex flex-col gap-1 text-sm">
+          <div className="flex flex-col gap-1 text-sm mb-3">
             {match.reasons.map((r, i) => (
               <div key={i} className={r.positive ? 'text-success' : 'text-muted'}>
                 {r.positive ? '✓' : '○'} {r.text}
               </div>
             ))}
           </div>
+          <button onClick={() => router.push('/dashboard/profile')} className="text-primary text-sm font-semibold underline">
+            Improve my match
+          </button>
         </div>
       )}
 
@@ -182,6 +197,21 @@ export default function ApplyPanel({ job }: { job: Job }) {
           }}
         />
       )}
+
+      {headerActionsEl &&
+        createPortal(
+          <>
+            <button className="btn-primary" disabled={applied} onClick={handleApplyClick}>
+              {applied ? '✓ Applied' : 'Apply now'}
+            </button>
+            {(!user || user.role === 'JOB_SEEKER') && (
+              <button className="btn-secondary" onClick={toggleSave}>
+                {saved ? '★ Saved' : '☆ Save job'}
+              </button>
+            )}
+          </>,
+          headerActionsEl,
+        )}
     </div>
   );
 }

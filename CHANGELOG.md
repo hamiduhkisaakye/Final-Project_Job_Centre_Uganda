@@ -11,6 +11,81 @@ changes, revert by restoring the described prior structure.
 
 ---
 
+## 2026-08-29 — Job detail page: header apply actions, match percentile, and a skill-assessment callout
+
+Requested via a screenshot with three boxed regions: the header card (with
+Apply now/Save job moved into it, plus posted-date and closing/applied
+stats), the match widget (a new "Top X% of applicants" line and an
+"Improve my match" link), and a redesigned skill-assessment notice. The
+match widget was already gated to logged-in job seekers only
+(`user?.role === 'JOB_SEEKER'` in `ApplyPanel.tsx`) — confirmed still true,
+no change needed there.
+
+**Schema**: no migration — `Job.expiresAt` already existed, unused
+anywhere in the codebase; wired it up as the "closing date" instead of
+adding a new column.
+
+**Backend** (`apps/api/src/jobs/`):
+- `create-job.dto.ts` — added optional `expiresAt` (`@IsDateString()`);
+  inherited automatically by `UpdateJobDto`. `jobs.service.ts#create`/
+  `update` convert it to a `Date` before writing (Prisma's generated types
+  don't accept a raw string).
+- `jobs.service.ts#findBySlug` — now includes the job's assessment, but
+  strips it to `{ title, questionCount }` before returning; the raw
+  `questions` JSON carries `correctIndex` answers and must never reach a
+  public response (same reasoning as `assessments.service.ts#forSeeker`).
+- `jobs.service.ts#matchFor` — now also returns `topPercent`: ranks the
+  caller's score against other applicants' snapshotted
+  `Application.matchScore` for the same job (set once at apply time, no
+  live recomputation needed) and omits the field entirely below 3 real
+  applicants, so a single data point never produces a misleading "Top
+  100%".
+
+**Frontend**:
+- `apps/web/src/components/ApplyPanel.tsx` — Apply now/Save job now render
+  via a `createPortal` into a `#job-header-actions` div in the header card
+  (`apps/web/src/app/jobs/[slug]/page.tsx`), so the buttons sit next to the
+  title/salary as in the mockup while the actual apply flow (cover letter
+  form, assessment gate, confirmation) stays exactly where it was in the
+  right-rail panel — no new modal, no state lifted into the server
+  component. The match card now shows "Top N% of applicants so far" in
+  place of "Based on your profile" when `topPercent` is present, plus a new
+  "Improve my match" link to `/dashboard/profile`.
+- `apps/web/src/app/jobs/[slug]/page.tsx` — added "Posted N days ago" to
+  the meta row and a "Closes in N days · N applied" line next to the
+  header actions (both plain server-rendered text, no client state
+  needed); added a new highlighted callout card ("Includes a
+  15-minute skill assessment") in the main content column when
+  `job.assessment` is present — duration is `max(5, round(questionCount *
+  1.5))` since Assessment has no stored duration field.
+- `apps/web/src/app/company/post-job/page.tsx` — added an optional
+  "Applications close on" date input in the Salary & screening step,
+  wired to the new `expiresAt` field.
+- `apps/web/src/lib/types.ts` — `Job.assessment` narrowed from
+  `Pick<Assessment, 'id' | 'title'>` to `{ title, questionCount } | null`
+  (the actual public shape); added `Job.expiresAt`.
+
+**Verified**: both apps typecheck clean; `nest build` + `next build` both
+succeed; confirmed via direct API calls that the public job response never
+leaks assessment `questions`/`correctIndex`; set `expiresAt` on a real job
+via `PATCH /jobs/:id` and confirmed it round-trips through the public
+`GET /jobs/:slug`; inserted synthetic `Application` rows with distinct
+`matchScore`s to confirm `topPercent` computes correctly once 3+
+applicants exist (`33%` for a score with exactly 1 of 3 applicants above
+it) and is omitted below that threshold — then removed the test data;
+confirmed via HTML inspection that the assessment callout, header actions
+placeholder, and "Posted" text all render on a live job page.
+
+**To revert**: remove the `topPercent`/assessment-stripping logic and
+`expiresAt` handling from `jobs.service.ts`, revert `create-job.dto.ts`,
+restore `ApplyPanel.tsx`'s buttons to their pre-portal inline position in
+the sidebar card, remove the `#job-header-actions` div and new callout/meta
+lines from the job detail page, and drop the "Applications close on" input
+from `post-job/page.tsx`. `Job.expiresAt` can stay in the schema unused,
+as it was before this change.
+
+---
+
 ## 2026-08-29 — Find-jobs page: active filter chips, capped category list, load-more pagination
 
 Requested via a screenshot with three boxed features: a removable filter-chip

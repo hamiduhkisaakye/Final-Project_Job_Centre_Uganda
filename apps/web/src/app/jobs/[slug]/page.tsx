@@ -1,5 +1,6 @@
 import Link from 'next/link';
 import { notFound } from 'next/navigation';
+import { Clock } from 'lucide-react';
 import PublicNavbar from '@/components/PublicNavbar';
 import Footer from '@/components/Footer';
 import ApplyPanel from '@/components/ApplyPanel';
@@ -11,6 +12,27 @@ function formatSalary(job: Job) {
   if (!job.salaryDisclosed || (!job.salaryMin && !job.salaryMax)) return 'Salary not disclosed';
   const fmt = (n: number) => `${job.salaryCurrency} ${n.toLocaleString()}`;
   return `${fmt(job.salaryMin || 0)} – ${fmt(job.salaryMax || 0)} / ${job.salaryPeriod}`;
+}
+
+function timeAgo(iso?: string | null) {
+  if (!iso) return null;
+  const days = Math.floor((Date.now() - new Date(iso).getTime()) / 86400000);
+  if (days <= 0) return 'Posted today';
+  if (days === 1) return 'Posted 1 day ago';
+  return `Posted ${days} days ago`;
+}
+
+function daysUntil(iso?: string | null) {
+  if (!iso) return null;
+  const days = Math.ceil((new Date(iso).getTime() - Date.now()) / 86400000);
+  return days > 0 ? days : null;
+}
+
+// No stored duration on Assessment — approximated from question count
+// (~1.5 min/question, floor of 5) rather than adding a field a company
+// would have to keep in sync by hand.
+function estimatedMinutes(questionCount: number) {
+  return Math.max(5, Math.round(questionCount * 1.5));
 }
 
 export default async function JobDetailPage({ params }: { params: { slug: string } }) {
@@ -40,11 +62,26 @@ export default async function JobDetailPage({ params }: { params: { slug: string
                 <span>📍 {job.location}</span>
                 <span>🕐 {job.employmentType.replace('_', '-').toLowerCase()}</span>
                 {job.seniority && <span>👤 {job.seniority}</span>}
+                {timeAgo(job.publishedAt) && <span>⏱ {timeAgo(job.publishedAt)}</span>}
               </div>
               <div className="flex items-center gap-2.5">
                 <span className="text-xl font-semibold text-primary">{formatSalary(job)}</span>
                 {job.salaryVerifiedAt && <span className="badge badge-green">✓ Verified salary</span>}
               </div>
+            </div>
+            <div className="flex flex-col items-stretch sm:items-end gap-2 flex-none w-full sm:w-auto">
+              {/* Apply now / Save job render here via a portal from ApplyPanel
+                  (see components/ApplyPanel.tsx) — the actual apply flow
+                  (cover letter, assessment gate, confirmation) stays in the
+                  right-rail panel below rather than duplicating it here. */}
+              <div id="job-header-actions" className="flex flex-col gap-2 items-stretch sm:items-end" />
+              {(daysUntil(job.expiresAt) != null || job.applicationsCount > 0) && (
+                <span className="text-xs text-muted sm:text-right">
+                  {daysUntil(job.expiresAt) != null && <>Closes in {daysUntil(job.expiresAt)} day{daysUntil(job.expiresAt) === 1 ? '' : 's'}</>}
+                  {daysUntil(job.expiresAt) != null && job.applicationsCount > 0 && ' · '}
+                  {job.applicationsCount > 0 && <>{job.applicationsCount} applied</>}
+                </span>
+              )}
             </div>
           </div>
         </div>
@@ -92,6 +129,18 @@ export default async function JobDetailPage({ params }: { params: { slug: string
                 ))}
               </div>
             </>
+          )}
+
+          {job.assessment && (
+            <div className="bg-ground rounded p-4 flex items-center gap-3.5 max-w-[720px] mb-6">
+              <div className="w-11 h-11 rounded bg-accent flex items-center justify-center flex-none">
+                <Clock className="w-5 h-5 text-ink" strokeWidth={1.75} />
+              </div>
+              <div>
+                <div className="font-semibold">Includes a {estimatedMinutes(job.assessment.questionCount)}-minute skill assessment</div>
+                <div className="text-sm text-muted">{job.assessment.title} — timed, taken as the last step of your application.</div>
+              </div>
+            </div>
           )}
         </div>
 

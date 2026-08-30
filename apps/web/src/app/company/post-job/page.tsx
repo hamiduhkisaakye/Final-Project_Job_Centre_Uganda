@@ -30,12 +30,13 @@ interface FormState {
   salaryMax: string;
   salaryDisclosed: boolean;
   assessmentId: string;
+  expiresAt: string;
 }
 
 const EMPTY: FormState = {
   title: '', category: '', employmentType: 'FULL_TIME', location: '', seniority: 'Mid-level',
   description: '', responsibilities: '', requirements: '', skills: '',
-  salaryMin: '', salaryMax: '', salaryDisclosed: true, assessmentId: '',
+  salaryMin: '', salaryMax: '', salaryDisclosed: true, assessmentId: '', expiresAt: '',
 };
 
 export default function PostJobPage() {
@@ -75,6 +76,7 @@ export default function PostJobPage() {
       salaryMax: form.salaryMax ? Number(form.salaryMax) : undefined,
       salaryDisclosed: form.salaryDisclosed,
       assessmentId: form.assessmentId || undefined,
+      expiresAt: form.expiresAt || undefined,
     };
   }
 
@@ -220,6 +222,11 @@ export default function PostJobPage() {
                   'Applicants must pass this assessment before they can apply.'
                 )}
               </p>
+            </div>
+            <div className="max-w-[220px]">
+              <label className="label">Applications close on (optional)</label>
+              <input className="input" type="date" value={form.expiresAt} onChange={(e) => update('expiresAt', e.target.value)} />
+              <p className="text-xs text-muted mt-1.5">Shown to candidates as &ldquo;Closes in N days&rdquo;. Leave blank for no deadline.</p>
             </div>
           </div>
         )}

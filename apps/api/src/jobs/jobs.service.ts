@@ -38,7 +38,7 @@ export class JobsService {
       this.findById(jobId),
       this.embeddings.similarity(userId, jobId),
     ]);
-    return this.matching.score(
+    const result = this.matching.score(
       {
         skills: (profile?.skills as string[]) || [],
         location: profile?.location,
@@ -48,6 +48,26 @@ export class JobsService {
       job,
       similarity,
     );
+    const topPercent = await this.topPercentFor(jobId, result.score);
+    return { ...result, topPercent };
+  }
+
+  // Below this many real applicants, a percentile is more misleading than
+  // useful (e.g. "Top 100%" off a single data point) — omitted instead.
+  private static readonly MIN_APPLICANTS_FOR_PERCENTILE = 3;
+
+  // Ranks a score against other applicants' snapshotted matchScore for the
+  // same job (Application.matchScore, set once at apply time — see
+  // applications.service.ts#apply) rather than recomputing every
+  // applicant's match live.
+  private async topPercentFor(jobId: string, myScore: number): Promise<number | undefined> {
+    const applications = await this.prisma.application.findMany({
+      where: { jobId, matchScore: { not: null } },
+      select: { matchScore: true },
+    });
+    if (applications.length < JobsService.MIN_APPLICANTS_FOR_PERCENTILE) return undefined;
+    const above = applications.filter((a) => (a.matchScore as number) > myScore).length;
+    return Math.min(99, Math.max(1, Math.round((above / applications.length) * 100)));
   }
 
   async recommendationsFor(userId: string, limit = 12) {
@@ -136,12 +156,20 @@ export class JobsService {
   async findBySlug(slug: string) {
     const job = await this.prisma.job.findUnique({
       where: { slug },
-      include: { company: true },
+      include: { company: true, assessment: { select: { title: true, questions: true } } },
     });
     if (!job) throw new NotFoundException('Job not found');
     // Fire-and-forget view increment; not critical-path for the response.
     this.prisma.job.update({ where: { id: job.id }, data: { viewsCount: { increment: 1 } } }).catch(() => undefined);
-    return job;
+    // The public job page needs the assessment's title and question count
+    // (for the "includes a skill assessment" callout) but never the raw
+    // questions JSON — that carries correctIndex answers, same reasoning as
+    // assessments.service.ts#forSeeker stripping it for the seeker-facing
+    // endpoint.
+    const assessment = job.assessment
+      ? { title: job.assessment.title, questionCount: (job.assessment.questions as unknown[]).length }
+      : null;
+    return { ...job, assessment };
   }
 
   async findById(id: string) {
@@ -190,6 +218,7 @@ export class JobsService {
         responsibilities: dto.responsibilities || [],
         requirements: dto.requirements || [],
         skills: dto.skills || [],
+        expiresAt: dto.expiresAt ? new Date(dto.expiresAt) : undefined,
         companyId: company.id,
         slug,
         status: 'DRAFT',
@@ -206,7 +235,8 @@ export class JobsService {
       throw new BadRequestException(`Cannot edit a job in status ${job.status}`);
     }
     await this.assertAssessmentOwnership(dto.assessmentId, job.companyId);
-    const updated = await this.prisma.job.update({ where: { id }, data: dto as Prisma.JobUpdateInput });
+    const data: Prisma.JobUpdateInput = { ...dto, expiresAt: dto.expiresAt ? new Date(dto.expiresAt) : undefined };
+    const updated = await this.prisma.job.update({ where: { id }, data });
     await this.embeddings.embedAndStoreJob(updated.id, updated).catch(() => undefined);
     return updated;
   }
