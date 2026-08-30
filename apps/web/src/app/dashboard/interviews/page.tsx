@@ -30,7 +30,7 @@ export default function InterviewsPage() {
   function Row({ i }: { i: Interview }) {
     const job = i.application?.job;
     return (
-      <div className="card p-4.5 flex items-center gap-4">
+      <div className="card p-5 flex items-center gap-4 hover:shadow-2 transition-shadow">
         <CompanyLogo company={{ name: job?.company?.name || '', logoUrl: job?.company?.logoUrl }} size={44} className="flex-none" />
         <div className="flex-1 min-w-0">
           <Link href={job?.slug ? `/jobs/${job.slug}` : '#'} className="font-semibold hover:text-primary transition-colors truncate block">
