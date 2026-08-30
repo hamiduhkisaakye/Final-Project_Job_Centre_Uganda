@@ -1,29 +1,57 @@
 'use client';
 
 import { useState } from 'react';
+import { useSearchParams } from 'next/navigation';
 import { LayoutGrid, List, SlidersHorizontal, X } from 'lucide-react';
 import JobCard from './JobCard';
 import JobFilters from './JobFilters';
+import { apiFetch } from '@/lib/api';
 import type { Job } from '@/lib/types';
 
 // Filters live in one place (JobFilters) and are reused both as the
 // always-visible desktop sidebar and inside the mobile off-canvas drawer —
 // same pattern as PortalSidebar's mobile drawer elsewhere in the app.
+//
+// The parent page renders this with key={qs} (the current filter query
+// string) so that changing filters remounts this component and resets its
+// local jobs/cursor state — without that, React would keep the old
+// paginated-in results around after a filter change since props alone don't
+// reset useState.
 export default function JobsResults({
-  jobs,
+  jobs: initialJobs,
   total,
   query,
   location,
   facets,
+  nextCursor,
 }: {
   jobs: Job[];
   total: number;
   query?: string;
   location?: string;
   facets?: { category: string; count: number }[];
+  nextCursor?: string | null;
 }) {
+  const searchParams = useSearchParams();
   const [viewMode, setViewMode] = useState<'card' | 'list'>('card');
   const [filtersOpen, setFiltersOpen] = useState(false);
+  const [jobs, setJobs] = useState(initialJobs);
+  const [cursor, setCursor] = useState(nextCursor ?? null);
+  const [loadingMore, setLoadingMore] = useState(false);
+
+  async function loadMore() {
+    if (!cursor || loadingMore) return;
+    setLoadingMore(true);
+    try {
+      const qs = new URLSearchParams(searchParams.toString());
+      qs.set('cursor', cursor);
+      const result = await apiFetch<{ data: Job[]; meta: { nextCursor: string | null } }>(`/jobs?${qs.toString()}`);
+      setJobs((prev) => [...prev, ...(result?.data || [])]);
+      setCursor(result?.meta?.nextCursor ?? null);
+    } finally {
+      setLoadingMore(false);
+    }
+  }
 
   return (
     <div className="max-w-[1320px] mx-auto px-6 py-7 flex flex-col md:flex-row gap-6 items-start">
@@ -103,6 +131,15 @@ export default function JobsResults({
             {jobs.map((j) => (
               <JobCard key={j.id} job={j} variant="list" hotHover />
             ))}
+          </div>
+        )}
+
+        {cursor && jobs.length < total && (
+          <div className="flex flex-col items-center gap-2 mt-8">
+            <button type="button" className="btn-secondary" disabled={loadingMore} onClick={loadMore}>
+              {loadingMore ? 'Loading…' : 'Load more jobs'}
+            </button>
+            <span className="text-xs text-muted">Showing {jobs.length} of {total}</span>
           </div>
         )}
       </div>

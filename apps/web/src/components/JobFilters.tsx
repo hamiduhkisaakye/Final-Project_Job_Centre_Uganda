@@ -13,11 +13,20 @@ const TYPES: { value: string; label: string }[] = [
   { value: 'REMOTE', label: 'Remote' },
 ];
 
+const POSTED_WITHIN: { value: string; label: string }[] = [
+  { value: '1', label: 'Last 24 hours' },
+  { value: '7', label: 'Last 7 days' },
+  { value: '30', label: 'Last 30 days' },
+];
+
+const VISIBLE_CATEGORIES = 4;
+
 export default function JobFilters({ facets, onNavigate }: { facets?: { category: string; count: number }[]; onNavigate?: () => void }) {
   const router = useRouter();
   const params = useSearchParams();
   const api = useApi();
   const [categories, setCategories] = useState<Category[]>([]);
+  const [showAllCategories, setShowAllCategories] = useState(false);
 
   useEffect(() => {
     api<Category[]>('/categories').then(setCategories).catch(() => {});
@@ -33,7 +42,9 @@ export default function JobFilters({ facets, onNavigate }: { facets?: { category
 
   const activeType = params.get('type');
   const activeCategory = params.get('category');
+  const activePosted = params.get('postedWithin');
   const verifiedOnly = params.get('verifiedSalary') === 'true';
+  const visibleCategories = showAllCategories ? categories : categories.slice(0, VISIBLE_CATEGORIES);
 
   return (
     <aside className="w-full md:w-[300px] flex-none bg-ground rounded p-5 h-fit">
@@ -53,7 +64,7 @@ export default function JobFilters({ facets, onNavigate }: { facets?: { category
       <div className="border-t border-border py-3.5">
         <div className="text-xs font-bold tracking-wide uppercase mb-2.5">Job category</div>
         <div className="flex flex-col gap-2 text-sm">
-          {categories.map((cat) => {
+          {visibleCategories.map((cat) => {
             const c = cat.name;
             const count = facets?.find((f) => f.category === c)?.count;
             return (
@@ -72,6 +83,15 @@ export default function JobFilters({ facets, onNavigate }: { facets?: { category
               </button>
             );
           })}
+          {!showAllCategories && categories.length > VISIBLE_CATEGORIES && (
+            <button
+              type="button"
+              onClick={() => setShowAllCategories(true)}
+              className="text-primary font-semibold text-left"
+            >
+              Show all {categories.length} →
+            </button>
+          )}
         </div>
       </div>
 
@@ -118,6 +138,25 @@ export default function JobFilters({ facets, onNavigate }: { facets?: { category
           />
           <span className="font-semibold">Verified salary only</span>
         </label>
+      </div>
+
+      <div className="border-t border-border py-3.5">
+        <div className="text-xs font-bold tracking-wide uppercase mb-2.5">Posted within</div>
+        <div className="flex flex-col gap-2 text-sm">
+          {POSTED_WITHIN.map((o) => (
+            <button
+              key={o.value}
+              type="button"
+              onClick={() => setParam('postedWithin', activePosted === o.value ? null : o.value)}
+              className={`flex items-center gap-2 text-left ${activePosted === o.value ? 'text-primary font-semibold' : 'text-ink/80'}`}
+            >
+              <span className={`w-[16px] h-[16px] rounded-full flex-none border flex items-center justify-center ${activePosted === o.value ? 'border-primary' : 'border-border'}`}>
+                {activePosted === o.value && <span className="w-[8px] h-[8px] rounded-full bg-primary" />}
+              </span>
+              {o.label}
+            </button>
+          ))}
+        </div>
       </div>
     </aside>
   );

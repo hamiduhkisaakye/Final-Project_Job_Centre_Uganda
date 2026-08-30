@@ -11,6 +11,56 @@ changes, revert by restoring the described prior structure.
 
 ---
 
+## 2026-08-29 — Find-jobs page: active filter chips, capped category list, load-more pagination
+
+Requested via a screenshot with three boxed features: a removable filter-chip
+row next to the search bar, a "Show all 24 →" link under the sidebar's Job
+category list, and a "Load more jobs" button. Also fixed a real gap this
+surfaced: `/jobs` was silently capping results at the first 12 matches with
+no way to reach the rest.
+
+**Backend** (`apps/api/src/jobs/jobs.service.ts`): added a `postedWithin`
+query param (days since `publishedAt`) to `JobSearchQuery` and `search()`'s
+`where` clause — needed so the mockup's "Last 7 days" chip corresponds to a
+real, working filter rather than a decorative example.
+
+**Frontend**:
+- New `apps/web/src/components/ActiveFilterChips.tsx` — reads `type`,
+  `salaryMin`, `verifiedSalary`, `postedWithin` from the URL and renders each
+  as a removable chip + a "Clear all" that drops just those keys. `category`
+  and `location` are deliberately excluded — location already shows in the
+  "N jobs in Kampala" heading and category is visible as a checked sidebar
+  box, so chips cover the filters that otherwise have no visible indicator
+  (especially with the sidebar tucked into the mobile drawer). Rendered
+  inside the sticky search bar in `apps/web/src/app/jobs/page.tsx`.
+- `apps/web/src/components/JobFilters.tsx` — the "Job category" list now
+  caps at 4 with a "Show all {n} →" link that expands the list in place
+  (local `showAllCategories` state, no navigation — filters and results
+  stay untouched). Added a new "Posted within" radio section (Last 24
+  hours / 7 days / 30 days) wired to the new `postedWithin` param.
+- `apps/web/src/components/JobsResults.tsx` — now holds `jobs`/`cursor` in
+  local state seeded from the initial server-rendered page, with a
+  "Load more jobs" button (shown only while `cursor && jobs.length < total`)
+  that fetches the next cursor page via `apiFetch` and appends. The parent
+  page renders `<JobsResults key={qs} .../>` so changing filters remounts
+  the component and resets pagination state — plain prop updates alone
+  wouldn't reset `useState`.
+
+**Verified**: both apps typecheck clean; `nest build` + `next build` both
+succeed; confirmed via direct API calls that `postedWithin=7`/`=1` filter
+correctly and that consecutive cursor pages return disjoint job sets;
+confirmed via HTML inspection that `/jobs?take=2` shows the Load-more
+button with "Showing 2 of 12" while plain `/jobs` (all 12 shown) correctly
+hides it, and that an active `type` filter renders a removable chip.
+
+**To revert**: remove `postedWithin` handling from `jobs.service.ts`,
+delete `ActiveFilterChips.tsx`, restore `JobFilters.tsx`'s unbounded
+category list (drop the `VISIBLE_CATEGORIES` cap and "Posted within"
+section), and revert `JobsResults.tsx` to render the `jobs` prop directly
+with no local pagination state.
+
+---
+
 ## 2026-08-28 — Admin-manageable job categories: homepage cards, browse-all page, yellow hover
 
 Requested via a screenshot of the "Browse by category" section (8 cards with

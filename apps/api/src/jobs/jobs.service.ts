@@ -15,6 +15,9 @@ export interface JobSearchQuery {
   type?: string;
   salaryMin?: string;
   verifiedSalary?: string;
+  // Days since publishedAt — '1' | '7' | '30', matching the sidebar's
+  // Posted within radio group.
+  postedWithin?: string;
   sort?: 'relevance' | 'newest' | 'salary_desc';
   cursor?: string;
   take?: string;
@@ -91,6 +94,10 @@ export class JobsService {
     if (query.type) where.employmentType = query.type as any;
     if (query.salaryMin) where.salaryMax = { gte: Number(query.salaryMin) };
     if (query.verifiedSalary === 'true') where.salaryVerifiedAt = { not: null };
+    if (query.postedWithin) {
+      const days = Number(query.postedWithin);
+      if (days > 0) where.publishedAt = { gte: new Date(Date.now() - days * 86400000) };
+    }
 
     const orderBy: Prisma.JobOrderByWithRelationInput =
       query.sort === 'newest' || !query.sort
