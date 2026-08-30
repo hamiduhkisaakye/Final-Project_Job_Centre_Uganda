@@ -30,7 +30,9 @@ export default async function JobsSearchPage({
             <input name="location" defaultValue={flat.location} placeholder="Location" className="flex-[1.4] px-3.5 py-2.5 sm:py-0 text-sm outline-none border-t sm:border-t-0 sm:border-l border-border" />
             <button type="submit" className="btn-primary h-9 m-1">Search</button>
           </form>
-          <ActiveFilterChips />
+          <div className="lg:ml-auto">
+            <ActiveFilterChips />
+          </div>
         </div>
       </div>
 

@@ -1,6 +1,6 @@
 'use client';
 
-import { useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { useSearchParams } from 'next/navigation';
 import { LayoutGrid, List, SlidersHorizontal, X } from 'lucide-react';
 import JobCard from './JobCard';
@@ -38,6 +38,28 @@ export default function JobsResults({
   const [jobs, setJobs] = useState(initialJobs);
   const [cursor, setCursor] = useState(nextCursor ?? null);
   const [loadingMore, setLoadingMore] = useState(false);
+  const sidebarRef = useRef<HTMLDivElement>(null);
+  const resultsRef = useRef<HTMLDivElement>(null);
+  // On desktop, the results column starts far shorter than the filters
+  // sidebar (2 cards vs. a tall filter list) — showing "Load more" the
+  // instant more data exists looks broken, floating mid-page above the
+  // still-much-taller sidebar. So it only appears once the results column
+  // has actually grown to match or exceed the sidebar's height. On mobile
+  // the sidebar is hidden (0 height), so this is always true there.
+  const [readyForLoadMore, setReadyForLoadMore] = useState(false);
+
+  useEffect(() => {
+    function compare() {
+      const sidebarHeight = sidebarRef.current?.offsetHeight ?? 0;
+      const resultsHeight = resultsRef.current?.offsetHeight ?? 0;
+      setReadyForLoadMore(resultsHeight >= sidebarHeight);
+    }
+    compare();
+    const observer = new ResizeObserver(compare);
+    if (sidebarRef.current) observer.observe(sidebarRef.current);
+    if (resultsRef.current) observer.observe(resultsRef.current);
+    return () => observer.disconnect();
+  }, [jobs, viewMode]);
 
   async function loadMore() {
     if (!cursor || loadingMore) return;
@@ -55,7 +77,7 @@ export default function JobsResults({
 
   return (
     <div className="max-w-[1320px] mx-auto px-6 py-7 flex flex-col md:flex-row gap-6 items-start">
-      <div className="hidden md:block">
+      <div className="hidden md:block" ref={sidebarRef}>
         <JobFilters facets={facets} />
       </div>
 
@@ -116,25 +138,27 @@ export default function JobsResults({
           </div>
         </div>
 
-        {jobs.length === 0 ? (
-          <div className="card p-10 text-center text-muted text-sm">
-            No jobs match these filters. Try removing one, or check back soon.
-          </div>
-        ) : viewMode === 'card' ? (
-          <div className="grid grid-cols-1 lg:grid-cols-2 xl:grid-cols-2 gap-5">
-            {jobs.map((j) => (
-              <JobCard key={j.id} job={j} hotHover />
-            ))}
-          </div>
-        ) : (
-          <div className="flex flex-col gap-3">
-            {jobs.map((j) => (
-              <JobCard key={j.id} job={j} variant="list" hotHover />
-            ))}
-          </div>
-        )}
+        <div ref={resultsRef}>
+          {jobs.length === 0 ? (
+            <div className="card p-10 text-center text-muted text-sm">
+              No jobs match these filters. Try removing one, or check back soon.
+            </div>
+          ) : viewMode === 'card' ? (
+            <div className="grid grid-cols-1 lg:grid-cols-2 xl:grid-cols-2 gap-5">
+              {jobs.map((j) => (
+                <JobCard key={j.id} job={j} hotHover />
+              ))}
+            </div>
+          ) : (
+            <div className="flex flex-col gap-3">
+              {jobs.map((j) => (
+                <JobCard key={j.id} job={j} variant="list" hotHover />
+              ))}
+            </div>
+          )}
+        </div>
 
-        {cursor && jobs.length < total && (
+        {cursor && jobs.length < total && readyForLoadMore && (
           <div className="flex flex-col items-center gap-2 mt-8">
             <button type="button" className="btn-secondary" disabled={loadingMore} onClick={loadMore}>
               {loadingMore ? 'Loading…' : 'Load more jobs'}
