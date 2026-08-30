@@ -71,6 +71,8 @@ export class ApplicationsService {
         location: profile?.location,
         yearsExperience: profile?.yearsExperience,
         expectedSalaryMin: profile?.expectedSalaryMin,
+        headline: profile?.headline,
+        experience: (profile?.experience as { title?: string }[]) || [],
       },
       job,
       similarity,

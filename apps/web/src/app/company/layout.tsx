@@ -8,6 +8,7 @@ import PortalSidebar from '@/components/PortalSidebar';
 import CompanyLogo from '@/components/CompanyLogo';
 import NotificationBell from '@/components/NotificationBell';
 import { useAuth } from '@/lib/auth-context';
+import { currentSectionLabel } from '@/lib/portal-nav';
 import Link from 'next/link';
 
 const GROUPS = [
@@ -30,6 +31,11 @@ const GROUPS = [
   },
 ];
 
+// Pages reachable without a sidebar entry (e.g. the "+ Post a Job" header
+// button) — kept separate from GROUPS so adding a title here doesn't also
+// add an unrequested sidebar item.
+const EXTRA_TITLES = [{ href: '/company/post-job', label: 'Post a Job' }];
+
 export default function CompanyLayout({ children }: { children: React.ReactNode }) {
   return (
     <RequireRole role="COMPANY">
@@ -42,6 +48,7 @@ function Shell({ children }: { children: React.ReactNode }) {
   const { user } = useAuth();
   const pathname = usePathname();
   const [sidebarOpen, setSidebarOpen] = useState(false);
+  const sectionLabel = currentSectionLabel(pathname, [...GROUPS.flatMap((g) => g.items), ...EXTRA_TITLES], 'Company Portal');
   return (
     <div className="min-h-screen bg-ground">
       <PortalSidebar
@@ -58,7 +65,7 @@ function Shell({ children }: { children: React.ReactNode }) {
             <button onClick={() => setSidebarOpen(true)} className="lg:hidden text-ink flex-none" aria-label="Open menu">
               <Menu className="w-6 h-6" />
             </button>
-            <span className="text-lg font-semibold truncate hidden sm:block">Company Portal</span>
+            <span className="text-lg font-semibold truncate hidden sm:block">{sectionLabel}</span>
           </div>
           <div className="flex items-center gap-2 sm:gap-3 flex-none">
             <NotificationBell />

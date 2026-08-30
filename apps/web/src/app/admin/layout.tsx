@@ -7,6 +7,7 @@ import RequireRole from '@/components/RequireRole';
 import PortalSidebar from '@/components/PortalSidebar';
 import NotificationBell from '@/components/NotificationBell';
 import { useAuth } from '@/lib/auth-context';
+import { currentSectionLabel } from '@/lib/portal-nav';
 
 const GROUPS = [
   { label: 'Overview', items: [{ href: '/admin', label: 'Dashboard' }] },
@@ -43,6 +44,7 @@ function Shell({ children }: { children: React.ReactNode }) {
   const { user } = useAuth();
   const pathname = usePathname();
   const [sidebarOpen, setSidebarOpen] = useState(false);
+  const sectionLabel = currentSectionLabel(pathname, GROUPS.flatMap((g) => g.items), 'Admin Console');
   return (
     <div className="min-h-screen bg-ground">
       <PortalSidebar
@@ -59,7 +61,7 @@ function Shell({ children }: { children: React.ReactNode }) {
             <button onClick={() => setSidebarOpen(true)} className="lg:hidden text-ink flex-none" aria-label="Open menu">
               <Menu className="w-6 h-6" />
             </button>
-            <span className="text-lg font-semibold truncate">Admin Console</span>
+            <span className="text-lg font-semibold truncate">{sectionLabel}</span>
           </div>
           <NotificationBell />
         </div>

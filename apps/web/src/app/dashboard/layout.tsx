@@ -9,6 +9,7 @@ import SeekerAvatar from '@/components/SeekerAvatar';
 import NotificationBell from '@/components/NotificationBell';
 import { useAuth, useApi } from '@/lib/auth-context';
 import { seekerDisplayName } from '@/lib/format';
+import { currentSectionLabel } from '@/lib/portal-nav';
 import type { Interview, Job } from '@/lib/types';
 
 function buildGroups(recCount: number, interviewCount: number) {
@@ -71,10 +72,13 @@ function Shell({ children }: { children: React.ReactNode }) {
     if (q.trim()) router.push(`/jobs?q=${encodeURIComponent(q.trim())}`);
   }
 
+  const groups = buildGroups(recCount, interviewCount);
+  const sectionLabel = currentSectionLabel(pathname, groups.flatMap((g) => g.items), 'Job Seeker Portal');
+
   return (
     <div className="min-h-screen bg-ground">
       <PortalSidebar
-        groups={buildGroups(recCount, interviewCount)}
+        groups={groups}
         footerLabel={seekerDisplayName(user)}
         footerSub={`Profile ${user?.seekerProfile?.profileStrength ?? 0}% complete`}
         footerAvatar={<SeekerAvatar seeker={user} size={36} />}
@@ -87,7 +91,7 @@ function Shell({ children }: { children: React.ReactNode }) {
             <button onClick={() => setSidebarOpen(true)} className="lg:hidden text-ink flex-none" aria-label="Open menu">
               <Menu className="w-6 h-6" />
             </button>
-            <span className="text-lg font-semibold truncate flex-none">Job Seeker Portal</span>
+            <span className="text-lg font-semibold truncate flex-none">{sectionLabel}</span>
             <form onSubmit={submitSearch} className="hidden sm:flex items-center gap-2 bg-ground rounded px-3 h-9 flex-1 max-w-[360px]">
               <Search className="w-4 h-4 text-muted flex-none" />
               <input

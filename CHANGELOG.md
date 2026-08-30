@@ -11,6 +11,65 @@ changes, revert by restoring the described prior structure.
 
 ---
 
+## 2026-08-30 — Dynamic portal page titles + role-similarity in match scoring
+
+Two independent changes: replacing each portal's static header label with
+the current page's actual name, and reducing the match score's reliance
+on exact skills-string matching by adding a deterministic "have they held
+this role before" signal.
+
+### Dynamic portal titles
+All three portal topbars (`dashboard/layout.tsx`, `company/layout.tsx`,
+`admin/layout.tsx`) previously showed a fixed "Job Seeker Portal"/"Company
+Portal"/"Admin Console" label regardless of which page was open. New
+`apps/web/src/lib/portal-nav.ts#currentSectionLabel(pathname, items,
+fallback)` looks up the current pathname against each layout's own nav
+items (exact match first, then longest-prefix for any future nested
+routes) and falls back to the old static label only for a page with no
+nav entry at all. Company's layout also gained a small `EXTRA_TITLES`
+list (currently just `/company/post-job` → "Post a Job") for pages
+reachable via a button rather than the sidebar — kept separate from the
+visible `GROUPS` so adding a title didn't also add an unrequested sidebar
+item.
+
+### Match score: role-similarity, not just skills
+`matching/matching.service.ts#score()` previously weighted skills overlap
+at 50 of 100 points with no signal at all for "has this person actually
+done this job before." New role-title bucket (20 points, skills reduced
+to 35, location reduced to 25→20 to make room): compares the job's
+`title`/`category` against the seeker's `headline` and every past
+`Experience` entry's `title`, after stripping seniority qualifiers
+("Senior", "Junior", "Lead", "Head"...) via a word-overlap (Jaccard)
+comparison — so "Marketing Officer" correctly reads as the same role as
+"Senior Marketing Officer" rather than two unrelated strings. Deliberately
+deterministic word-overlap rather than another embedding call — keeps the
+new "Your experience as '{role}' closely matches this role" reason
+legible and explainable, consistent with this function's existing
+rule-based reasons. Threaded `headline`/`experience` through all three
+call sites (`jobs.service.ts#matchFor`, `#recommendationsFor`,
+`applications.service.ts#apply`'s snapshotted score).
+
+**Verified**: both apps typecheck clean; `nest build` + `next build` both
+succeed; confirmed via direct API calls with a real seeker profile
+(headline "Marketing Officer", one Experience entry titled "Marketing
+Officer") — "Senior Marketing Officer" scored 65% and "Marketing Officer —
+Trade" scored 58%, both carrying the new role-match reason, while an
+unrelated "Warehouse Supervisor" scored 19% with no such reason;
+`/me/recommendations` now ranks the marketing roles at the top, ahead of
+an unrelated "Smoke Test QA Role" that previously could out-rank them on
+skills alone. **Not verified**: the rendered portal title text in a real
+browser — these are client-auth-gated pages that return a loading shell
+to an unauthenticated fetch, so the (type-checked, logic-reviewed)
+`currentSectionLabel` output itself wasn't visually confirmed; no browser
+automation tool is available in this environment.
+
+**To revert**: restore the static `<span>` text in the three layouts and
+delete `portal-nav.ts`; in `matching.service.ts`, remove the role-title
+bucket and restore the skills/location weights to 50/25 (and drop
+`headline`/`experience` from the three call sites' seeker objects).
+
+---
+
 ## 2026-08-30 — Job seeker portal: dashboard nav, applications reorder, full Resume Builder rebuild
 
 Requested via three screenshots (Dashboard, Applications, Resume Builder)
