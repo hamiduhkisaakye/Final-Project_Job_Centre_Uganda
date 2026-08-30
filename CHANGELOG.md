@@ -11,6 +11,60 @@ changes, revert by restoring the described prior structure.
 
 ---
 
+## 2026-08-29 — Job detail page: company widget, career-advice widget, wider header buttons
+
+Follow-up to the header/match/assessment redesign above, filling in the two
+right-rail widgets that weren't boxed in that screenshot but appeared in
+the mockup (posting-company card, and a widget in place of "Salary
+insight"), plus a sizing fix on the header's Apply now/Save job buttons.
+
+**Backend** (`apps/api/src/jobs/jobs.service.ts#findBySlug`): the
+`company` include now also selects `_count.jobs` (published jobs only —
+same semantics `companies.service.ts`'s list endpoint already uses), so
+the job-detail company card and the companies directory never disagree on
+what "N open jobs" means. No new fields needed otherwise — `industry`,
+`sizeBand`, and `about` already existed on `Company` and were simply
+unused on this page.
+
+**Frontend** (`apps/web/src/app/jobs/[slug]/page.tsx`):
+- New company card in the right rail: logo, name, `industry · sizeBand
+  staff`, the company's `about` blurb (clamped to 3 lines), and "N open
+  jobs" / "View profile →" linking to `/companies/[slug]` — same
+  `CompanyLogo` component and `_count.jobs` semantics already used on the
+  companies directory page.
+- New "Career Advice" widget in the spot the mockup used for "Salary
+  insight": the single latest published post (`GET /blog?take=1`, same
+  call the homepage already makes), with its cover image, title, and a
+  teaser (reusing the homepage's `postTeaser` truncation logic), linking
+  to `/career-advice/[slug]`. Deliberately just the latest post rather
+  than trying to match it to the job's category — the two taxonomies
+  (job categories vs. `BlogCategory`) don't correspond, and a fabricated
+  "related" claim would be worse than an honest "latest" one. Both
+  widgets render only when there's real data (a company, at least one
+  published post) — no empty-state placeholders.
+- Apply now/Save job: the header's `#job-header-actions` wrapper is now a
+  fixed `w-full sm:w-[220px]` (previously it hugged its own content via
+  `sm:items-end`), and both portal-rendered buttons in
+  `apps/web/src/components/ApplyPanel.tsx` gained `w-full` — the fixed
+  container is what makes them render the same, deliberately wider size
+  instead of each button sizing to its own text.
+
+**Verified**: both apps typecheck clean; `nest build` + `next build` both
+succeed; confirmed via a direct API call that `GET /jobs/:slug` now
+returns `company._count.jobs`; confirmed via HTML inspection that the
+company card, career-advice card, and the `w-[220px]` header actions
+container all render on a live job page with real seed data (industry,
+size band, about text, open-jobs count, and the latest post's cover image
+all matching the database).
+
+**To revert**: drop the company card and career-advice widget blocks from
+`page.tsx`, restore `#job-header-actions`'s wrapper to
+`items-stretch sm:items-end` / `w-full sm:w-auto` and drop `w-full` from
+the two portal buttons in `ApplyPanel.tsx`, and remove the `_count`
+selection from `findBySlug`'s company include.
+
+---
+
 ## 2026-08-29 — Job detail page: header apply actions, match percentile, and a skill-assessment callout
 
 Requested via a screenshot with three boxed regions: the header card (with

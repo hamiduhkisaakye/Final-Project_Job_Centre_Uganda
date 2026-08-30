@@ -156,7 +156,13 @@ export class JobsService {
   async findBySlug(slug: string) {
     const job = await this.prisma.job.findUnique({
       where: { slug },
-      include: { company: true, assessment: { select: { title: true, questions: true } } },
+      include: {
+        // Same "published jobs" count semantics as companies.service.ts's
+        // list endpoint, so the job-detail company card and the companies
+        // directory never disagree on what "N open jobs" means.
+        company: { include: { _count: { select: { jobs: { where: { status: 'PUBLISHED' } } } } } },
+        assessment: { select: { title: true, questions: true } },
+      },
     });
     if (!job) throw new NotFoundException('Job not found');
     // Fire-and-forget view increment; not critical-path for the response.

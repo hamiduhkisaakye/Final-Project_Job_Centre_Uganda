@@ -201,11 +201,11 @@ export default function ApplyPanel({ job }: { job: Job }) {
       {headerActionsEl &&
         createPortal(
           <>
-            <button className="btn-primary" disabled={applied} onClick={handleApplyClick}>
+            <button className="btn-primary w-full" disabled={applied} onClick={handleApplyClick}>
               {applied ? '✓ Applied' : 'Apply now'}
             </button>
             {(!user || user.role === 'JOB_SEEKER') && (
-              <button className="btn-secondary" onClick={toggleSave}>
+              <button className="btn-secondary w-full" onClick={toggleSave}>
                 {saved ? '★ Saved' : '☆ Save job'}
               </button>
             )}
