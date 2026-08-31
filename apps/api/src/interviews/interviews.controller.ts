@@ -104,6 +104,12 @@ export class InterviewsController {
     return this.interviews.requestReschedule(user, id, dto.note);
   }
 
+  @Post('interviews/:id/cancel')
+  @Roles('JOB_SEEKER')
+  cancelBySeeker(@CurrentUser() user: JwtUser, @Param('id') id: string) {
+    return this.interviews.cancelBySeeker(user, id);
+  }
+
   @Get('interviews/:id/prep-questions')
   @Roles('JOB_SEEKER')
   prepQuestions(@CurrentUser() user: JwtUser, @Param('id') id: string) {

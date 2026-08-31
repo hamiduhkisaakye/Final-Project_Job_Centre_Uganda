@@ -86,7 +86,7 @@ function PrepPanel({ interview }: { interview: Interview }) {
   );
 }
 
-function ProposedCard({ interview, onConfirmed }: { interview: Interview; onConfirmed: () => void }) {
+function ProposedCard({ interview, onConfirmed, onCancelled }: { interview: Interview; onConfirmed: () => void; onCancelled: () => void }) {
   const api = useApi();
   const [selected, setSelected] = useState<string | null>(interview.slots?.[0]?.id ?? null);
   const [busy, setBusy] = useState(false);
@@ -121,6 +121,20 @@ function ProposedCard({ interview, onConfirmed }: { interview: Interview; onConf
     }
   }
 
+  async function declineInterview() {
+    if (!window.confirm(`Decline this interview with ${job?.company?.name || 'this company'}? This cannot be undone.`)) return;
+    setBusy(true);
+    setError(null);
+    try {
+      await api(`/interviews/${interview.id}/cancel`, { method: 'POST' });
+      onCancelled();
+    } catch (err) {
+      setError(err instanceof ApiError ? err.message : 'Something went wrong');
+    } finally {
+      setBusy(false);
+    }
+  }
+
   return (
     <div className="card p-5 border-l-4 border-accent">
       <div className="flex items-start gap-3 mb-3">
@@ -145,21 +159,39 @@ function ProposedCard({ interview, onConfirmed }: { interview: Interview; onConf
       {suggesting ? (
         <p className="text-sm text-success">Sent — we've asked for a new time.</p>
       ) : (
-        <div className="flex gap-2">
+        <div className="flex flex-wrap gap-2">
           <button className="btn-primary" disabled={busy || !selected} onClick={confirm}>Confirm slot</button>
           <button className="btn-secondary" disabled={busy} onClick={requestReschedule}>Request another time</button>
+          <button className="text-danger text-sm font-semibold px-2" disabled={busy} onClick={declineInterview}>Decline</button>
         </div>
       )}
     </div>
   );
 }
 
-function UpcomingCard({ interview, accessToken }: { interview: Interview; accessToken: string | null }) {
+function UpcomingCard({ interview, accessToken, onCancelled }: { interview: Interview; accessToken: string | null; onCancelled: () => void }) {
+  const api = useApi();
   const [showPrep, setShowPrep] = useState(false);
+  const [busy, setBusy] = useState(false);
+  const [error, setError] = useState<string | null>(null);
   const job = interview.application?.job;
   const scheduledAt = interview.scheduledAt ? new Date(interview.scheduledAt) : null;
   const canJoinSoon = scheduledAt && interview.mode === 'VIDEO_CALL' && scheduledAt.getTime() - Date.now() < 15 * 60000;
   const openLabel = scheduledAt ? timeUntilLabel(scheduledAt) : null;
+
+  async function cancelInterview() {
+    if (!window.confirm(`Cancel your interview with ${job?.company?.name || 'this company'}? This cannot be undone.`)) return;
+    setBusy(true);
+    setError(null);
+    try {
+      await api(`/interviews/${interview.id}/cancel`, { method: 'POST' });
+      onCancelled();
+    } catch (err) {
+      setError(err instanceof ApiError ? err.message : 'Something went wrong');
+    } finally {
+      setBusy(false);
+    }
+  }
 
   return (
     <div className="card p-5">
@@ -196,7 +228,11 @@ function UpcomingCard({ interview, accessToken }: { interview: Interview; access
         <button className="text-primary text-sm font-semibold" onClick={() => setShowPrep((v) => !v)}>
           {showPrep ? 'Hide prep' : 'Prep for this interview →'}
         </button>
+        <button className="text-danger text-sm font-semibold ml-auto" disabled={busy} onClick={cancelInterview}>
+          Cancel interview
+        </button>
       </div>
+      {error && <p className="text-sm text-danger mt-2">{error}</p>}
 
       {showPrep && <PrepPanel interview={interview} />}
     </div>
@@ -258,7 +294,7 @@ export default function InterviewSchedulePage() {
               <div>
                 <h2 className="text-sm font-bold tracking-wide text-muted mb-3">NEEDS YOUR RESPONSE</h2>
                 <div className="flex flex-col gap-3">
-                  {proposed.map((i) => <ProposedCard key={i.id} interview={i} onConfirmed={load} />)}
+                  {proposed.map((i) => <ProposedCard key={i.id} interview={i} onConfirmed={load} onCancelled={load} />)}
                 </div>
               </div>
             )}
@@ -271,7 +307,7 @@ export default function InterviewSchedulePage() {
                 </div>
               ) : (
                 <div className="flex flex-col gap-3">
-                  {visibleUpcoming.map((i) => <UpcomingCard key={i.id} interview={i} accessToken={accessToken} />)}
+                  {visibleUpcoming.map((i) => <UpcomingCard key={i.id} interview={i} accessToken={accessToken} onCancelled={load} />)}
                 </div>
               )}
             </div>

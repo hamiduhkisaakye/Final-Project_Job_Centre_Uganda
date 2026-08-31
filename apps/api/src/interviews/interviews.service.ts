@@ -165,6 +165,38 @@ export class InterviewsService {
     return { success: true };
   }
 
+  // Lets the candidate cancel outright — a still-PROPOSED offer they don't
+  // want any of, or an already-SCHEDULED one they can no longer make.
+  // Unlike requestReschedule this is a real state change, so the recruiter
+  // needs a clear signal, not just a nudge.
+  async cancelBySeeker(user: JwtUser, interviewId: string) {
+    if (user.role !== 'JOB_SEEKER') throw new ForbiddenException('Only the candidate can cancel their own interview');
+    const interview = await this.prisma.interview.findUnique({
+      where: { id: interviewId },
+      include: { application: { include: { job: true } } },
+    });
+    if (!interview) throw new NotFoundException('Interview not found');
+    if (interview.application.seekerId !== user.sub) throw new ForbiddenException('Not your interview');
+    if (interview.status === 'CANCELLED' || interview.status === 'COMPLETED') {
+      throw new BadRequestException(`This interview is already ${interview.status.toLowerCase()}`);
+    }
+
+    const updated = await this.prisma.interview.update({ where: { id: interviewId }, data: { status: 'CANCELLED' } });
+
+    try {
+      const conversation = await this.chat.startConversation(user, {
+        companyId: interview.application.job.companyId,
+        jobId: interview.application.jobId,
+      });
+      const message = await this.chat.send(conversation.id, user.sub, '❌ The candidate has cancelled this interview.');
+      this.chatGateway.broadcastMessage(conversation.id, message);
+    } catch {
+      /* non-critical */
+    }
+
+    return updated;
+  }
+
   async list(user: JwtUser, applicationId: string) {
     await this.assertApplicationAccess(applicationId, user);
     return this.prisma.interview.findMany({

@@ -11,6 +11,41 @@ changes, revert by restoring the described prior structure.
 
 ---
 
+## 2026-08-31 — Seekers can now cancel an interview themselves
+
+Job seekers previously had no way to back out of an interview — only
+"Confirm slot" or "Request another time" on a pending proposal, and no
+action at all once one was confirmed. New `POST /interviews/:id/cancel`
+(`interviews.service.ts#cancelBySeeker`, JOB_SEEKER-only): verifies the
+interview belongs to the caller's own application, rejects if it's already
+`CANCELLED`/`COMPLETED` (400), sets `status: CANCELLED`, and auto-posts a
+"❌ The candidate has cancelled this interview." chat notice to the
+recruiter — the same auto-post-to-chat pattern every other interview state
+change in this app already uses, so the company finds out immediately
+rather than only noticing next time they check.
+
+**Frontend** (`apps/web/src/app/dashboard/interviews/page.tsx`):
+- `ProposedCard` gained a "Decline" button alongside Confirm/Request
+  another time — for a proposal the candidate doesn't want any of the
+  offered times for.
+- `UpcomingCard` gained a "Cancel interview" button — for a confirmed
+  interview the candidate can no longer make.
+- Both go through a `window.confirm()` guard first, matching the
+  withdraw-application pattern already used elsewhere in this portal.
+
+**Verified**: both apps typecheck clean; `nest build` + `next build` both
+succeed; confirmed live via direct API calls — proposed an interview,
+cancelled it as the seeker (confirmed `status: "CANCELLED"`), confirmed a
+second cancel attempt correctly 400s ("already cancelled"), confirmed a
+*different* seeker (not the applicant) is correctly blocked with 403, and
+confirmed the chat notice was posted. Test data removed afterward.
+
+**To revert**: remove `cancelBySeeker` from `interviews.service.ts` and
+its controller route, and drop the "Decline"/"Cancel interview" buttons
+and their handlers from `dashboard/interviews/page.tsx`.
+
+---
+
 ## 2026-08-31 — Stale interview proposals now clear on reschedule, plus a company Interviews page
 
 Two fixes to the multi-slot interview feature added the day before.
