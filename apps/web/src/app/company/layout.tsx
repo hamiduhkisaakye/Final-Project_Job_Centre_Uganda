@@ -18,6 +18,7 @@ const GROUPS = [
     items: [
       { href: '/company/manage-jobs', label: 'Manage Jobs' },
       { href: '/company/pipeline', label: 'Candidate Pipeline' },
+      { href: '/company/interviews', label: 'Interviews' },
       { href: '/company/assessments', label: 'Skills Assessments' },
     ],
   },

@@ -11,6 +11,55 @@ changes, revert by restoring the described prior structure.
 
 ---
 
+## 2026-08-31 — Stale interview proposals now clear on reschedule, plus a company Interviews page
+
+Two fixes to the multi-slot interview feature added the day before.
+
+**Stale proposal bug**: a seeker's "Request another time" (`requestReschedule`)
+only ever posted a chat nudge — it never changed the interview's state. If
+the company then sent a fresh proposal, the *old* `PROPOSED` interview kept
+sitting in the seeker's "Needs your response" list forever alongside the
+new one, since nothing ever superseded it. `interviews.service.ts#propose`
+now cancels any still-`PROPOSED` interview for that application before
+creating the new one — a fresh proposal always replaces an unanswered one.
+Deliberately scoped to `PROPOSED` only, never `SCHEDULED`: a company
+legitimately proposing a second interview round after a first is already
+confirmed shouldn't cancel that confirmed booking. The cancelled interview
+isn't deleted — it falls out of "Needs your response" (the actionable
+list) and shows under "Past" as `CANCELLED`, a transparent record rather
+than silently vanishing. No frontend change was needed for this — the
+existing status-bucketing in `dashboard/interviews/page.tsx` already does
+the right thing once the backend stops leaving stale `PROPOSED` rows
+around.
+
+**New `apps/web/src/app/company/interviews/page.tsx`** — the company-side
+counterpart to the seeker's Interview Schedule page, added to
+`company/layout.tsx`'s "Hiring" nav group. Reuses `/me/interviews`
+(already company-scoped when called with a COMPANY role) and the same
+`InterviewCalendar` component, bucketed into "Awaiting candidate
+response" (`PROPOSED`), "Upcoming" (`SCHEDULED`, future), and "Past".
+Each row: candidate avatar/name, job, offered times or confirmed time,
+"View profile" (reuses `SeekerProfileModal`), "Message" (starts/opens the
+same conversation used elsewhere), "Add to calendar" for confirmed
+interviews, and a new "Cancel proposal" action for `PROPOSED` ones —
+reuses the existing generic `PATCH /interviews/:id` `status` update, no
+new endpoint needed.
+
+**Verified**: both apps typecheck clean; `nest build` + `next build` both
+succeed; confirmed the supersede fix live via direct API calls — proposed
+an interview, requested a reschedule, proposed a second one, and
+confirmed the first flipped to `CANCELLED` while `GET /me/interviews`'s
+`PROPOSED` bucket held exactly one row (the new one); confirmed
+`/company/interviews` renders. Test interviews, slots, and their
+auto-posted chat messages removed afterward.
+
+**To revert**: remove the `updateMany` cancel block from
+`interviews.service.ts#propose`, delete
+`apps/web/src/app/company/interviews/page.tsx`, and drop its entry from
+`company/layout.tsx`'s `GROUPS`.
+
+---
+
 ## 2026-08-30 — All 10 suggested Messages/Interview Schedule features
 
 Implements every feature suggested from the earlier Messages and Interview

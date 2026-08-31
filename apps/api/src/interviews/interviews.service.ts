@@ -61,6 +61,18 @@ export class InterviewsService {
     if (!dto.slots?.length) throw new BadRequestException('Offer at least one candidate time');
     const app = await this.assertApplicationAccess(applicationId, user);
 
+    // A fresh proposal supersedes any still-unanswered one for this
+    // application — otherwise a seeker who asked for another time (see
+    // requestReschedule below) keeps seeing the old, now-stale proposal
+    // sitting in "Needs your response" forever after the recruiter sends a
+    // new one. Only PROPOSED (never-confirmed) interviews are cancelled
+    // here — a already-CONFIRMED interview is left alone, since a company
+    // may legitimately schedule a second round while a first is booked.
+    await this.prisma.interview.updateMany({
+      where: { applicationId, status: 'PROPOSED' },
+      data: { status: 'CANCELLED' },
+    });
+
     const interview = await this.prisma.interview.create({
       data: {
         applicationId,
