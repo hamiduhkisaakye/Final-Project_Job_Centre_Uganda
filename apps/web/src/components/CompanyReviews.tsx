@@ -3,6 +3,7 @@
 import { useEffect, useState } from 'react';
 import { Star } from 'lucide-react';
 import { useAuth, useApi } from '@/lib/auth-context';
+import { useDialog } from '@/lib/dialog-context';
 import { ApiError } from '@/lib/api';
 import { seekerDisplayName, seekerInitials } from '@/lib/format';
 import SeekerAvatar from './SeekerAvatar';
@@ -50,6 +51,7 @@ function formatDate(iso: string) {
 export default function CompanyReviews({ company, initialReviews }: { company: Company; initialReviews: CompanyReview[] }) {
   const { user } = useAuth();
   const api = useApi();
+  const { confirmDialog } = useDialog();
   const [reviews, setReviews] = useState(initialReviews);
   const [myRating, setMyRating] = useState(0);
   const [myComment, setMyComment] = useState('');
@@ -90,7 +92,7 @@ export default function CompanyReviews({ company, initialReviews }: { company: C
   }
 
   async function deleteMyReview() {
-    if (!confirm('Delete your review? This cannot be undone.')) return;
+    if (!(await confirmDialog('Delete your review? This cannot be undone.', { danger: true, confirmLabel: 'Delete' }))) return;
     setSaving(true);
     try {
       await api(`/companies/${company.id}/reviews`, { method: 'DELETE' });

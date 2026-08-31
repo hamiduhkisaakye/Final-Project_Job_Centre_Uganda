@@ -7,6 +7,7 @@ import TiptapImage from '@tiptap/extension-image';
 import TiptapLink from '@tiptap/extension-link';
 import { Bold, Italic, Heading2, Heading3, List, ListOrdered, Link as LinkIcon, Image as ImageIcon } from 'lucide-react';
 import { useApiUpload } from '@/lib/auth-context';
+import { useDialog } from '@/lib/dialog-context';
 import { ApiError, API_ORIGIN } from '@/lib/api';
 
 // WYSIWYG editor for a blog post body. Inline images are inserted as
@@ -17,6 +18,7 @@ import { ApiError, API_ORIGIN } from '@/lib/api';
 // renderer already prefixes with API_ORIGIN itself.
 export default function BlogEditor({ content, onChange }: { content: string; onChange: (html: string) => void }) {
   const upload = useApiUpload();
+  const { alertDialog, promptDialog } = useDialog();
   const fileRef = useRef<HTMLInputElement>(null);
 
   const editor = useEditor({
@@ -49,7 +51,7 @@ export default function BlogEditor({ content, onChange }: { content: string; onC
       const { coverImageUrl } = await upload<{ coverImageUrl: string }>('/uploads/blog-cover', file);
       editor.chain().focus().setImage({ src: `${API_ORIGIN}${coverImageUrl}` }).run();
     } catch (err) {
-      alert(err instanceof ApiError ? err.message : 'Image upload failed — please try again.');
+      await alertDialog(err instanceof ApiError ? err.message : 'Image upload failed — please try again.');
     } finally {
       if (fileRef.current) fileRef.current.value = '';
     }
@@ -104,8 +106,8 @@ export default function BlogEditor({ content, onChange }: { content: string; onC
         <button
           type="button"
           className={btnClass(editor.isActive('link'))}
-          onClick={() => {
-            const url = window.prompt('Link URL');
+          onClick={async () => {
+            const url = await promptDialog('Link URL', '', { placeholder: 'https://', confirmLabel: 'Insert' });
             if (url) editor.chain().focus().setLink({ href: url }).run();
           }}
           aria-label="Insert link"

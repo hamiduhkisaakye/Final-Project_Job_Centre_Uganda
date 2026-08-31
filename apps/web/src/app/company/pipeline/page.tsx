@@ -4,6 +4,7 @@ import { Suspense, useEffect, useState } from 'react';
 import { useRouter, useSearchParams } from 'next/navigation';
 import { DndContext, PointerSensor, useDraggable, useDroppable, useSensor, useSensors, type DragEndEvent } from '@dnd-kit/core';
 import { useApi } from '@/lib/auth-context';
+import { useDialog } from '@/lib/dialog-context';
 import { ApiError } from '@/lib/api';
 import { seekerDisplayName } from '@/lib/format';
 import SeekerProfileModal from '@/components/SeekerProfileModal';
@@ -135,6 +136,7 @@ function RejectZone() {
 
 function PipelineInner() {
   const api = useApi();
+  const { alertDialog, promptDialog } = useDialog();
   const router = useRouter();
   const searchParams = useSearchParams();
   const [jobs, setJobs] = useState<Job[]>([]);
@@ -175,13 +177,13 @@ function PipelineInner() {
       await api(`/applications/${id}/stage`, { method: 'PATCH', body: reason ? { stage, reason } : { stage } });
       load(jobId);
     } catch (err) {
-      alert(err instanceof ApiError ? err.message : 'Something went wrong');
+      await alertDialog(err instanceof ApiError ? err.message : 'Something went wrong');
     } finally {
       setBusyId(null);
     }
   }
 
-  function onDragEnd(event: DragEndEvent) {
+  async function onDragEnd(event: DragEndEvent) {
     const { active, over } = event;
     if (!over) return;
     const targetStage = over.id as ApplicationStage;
@@ -189,7 +191,7 @@ function PipelineInner() {
     if (!application || application.stage === targetStage) return;
 
     if (targetStage === 'REJECTED') {
-      const reason = prompt('Rejection reason (shown to the candidate context, required):');
+      const reason = await promptDialog('Rejection reason (shown to the candidate)', '', { required: true, confirmLabel: 'Reject', title: 'Reject candidate' });
       if (!reason) return;
       moveStage(application.id, 'REJECTED', reason);
       return;

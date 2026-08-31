@@ -4,6 +4,7 @@ import { useEffect, useMemo, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { Video } from 'lucide-react';
 import { useAuth, useApi } from '@/lib/auth-context';
+import { useDialog } from '@/lib/dialog-context';
 import { downloadFile } from '@/lib/api';
 import { seekerDisplayName } from '@/lib/format';
 import SeekerAvatar from '@/components/SeekerAvatar';
@@ -27,13 +28,14 @@ function InterviewRow({ interview, accessToken, onMessage, onView, onCancelled }
   onMessage: () => void; onView: () => void; onCancelled: () => void;
 }) {
   const api = useApi();
+  const { confirmDialog } = useDialog();
   const [busy, setBusy] = useState(false);
   const seeker = interview.application?.seeker;
   const job = interview.application?.job;
   const scheduledAt = interview.scheduledAt ? new Date(interview.scheduledAt) : null;
 
   async function cancelProposal() {
-    if (!confirm('Cancel this interview proposal? The candidate will no longer be able to confirm it.')) return;
+    if (!(await confirmDialog('Cancel this interview proposal? The candidate will no longer be able to confirm it.', { danger: true, confirmLabel: 'Cancel proposal' }))) return;
     setBusy(true);
     try {
       await api(`/interviews/${interview.id}`, { method: 'PATCH', body: { status: 'CANCELLED' } });

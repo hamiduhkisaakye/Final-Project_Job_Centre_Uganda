@@ -2,6 +2,7 @@
 
 import { useEffect, useState } from 'react';
 import { useApi } from '@/lib/auth-context';
+import { useDialog } from '@/lib/dialog-context';
 import { ApiError } from '@/lib/api';
 import { CATEGORY_ICONS, categoryIcon } from '@/lib/category-icons';
 import type { Category } from '@/lib/types';
@@ -23,6 +24,7 @@ function toEditorState(c?: Category): EditorState {
 
 export default function AdminCategoriesPage() {
   const api = useApi();
+  const { confirmDialog } = useDialog();
   const [categories, setCategories] = useState<Category[]>([]);
   const [loading, setLoading] = useState(true);
   const [editor, setEditor] = useState<EditorState | null>(null);
@@ -57,7 +59,7 @@ export default function AdminCategoriesPage() {
   }
 
   async function remove(c: Category) {
-    if (!confirm(`Delete "${c.name}"? Jobs already posted under this category keep it — this only removes it from the picklist.`)) return;
+    if (!(await confirmDialog(`Delete "${c.name}"? Jobs already posted under this category keep it — this only removes it from the picklist.`, { danger: true, confirmLabel: 'Delete' }))) return;
     setBusyId(c.id);
     try {
       await api(`/admin/categories/${c.id}`, { method: 'DELETE' });

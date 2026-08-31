@@ -3,6 +3,7 @@
 import { useEffect, useRef, useState } from 'react';
 import { Sparkles } from 'lucide-react';
 import { useApi, useApiUpload } from '@/lib/auth-context';
+import { useDialog } from '@/lib/dialog-context';
 import { API_ORIGIN, ApiError } from '@/lib/api';
 import BlogEditor from '@/components/BlogEditor';
 import BlogPostPreview from '@/components/BlogPostPreview';
@@ -34,6 +35,7 @@ function toEditorState(p?: BlogPost): EditorState {
 export default function AdminCareerAdvicePage() {
   const api = useApi();
   const upload = useApiUpload();
+  const { confirmDialog } = useDialog();
   const fileRef = useRef<HTMLInputElement>(null);
 
   const [posts, setPosts] = useState<BlogPost[]>([]);
@@ -116,7 +118,7 @@ export default function AdminCareerAdvicePage() {
   }
 
   async function remove(post: BlogPost) {
-    if (!confirm(`Delete "${post.title}"? This cannot be undone.`)) return;
+    if (!(await confirmDialog(`Delete "${post.title}"? This cannot be undone.`, { danger: true, confirmLabel: 'Delete' }))) return;
     setBusyId(post.id);
     try {
       await api(`/admin/blog/${post.id}`, { method: 'DELETE' });

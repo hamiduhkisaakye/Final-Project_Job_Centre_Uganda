@@ -11,6 +11,64 @@ changes, revert by restoring the described prior structure.
 
 ---
 
+## 2026-08-31 — Replaced every native confirm/alert/prompt with an in-app dialog
+
+Every browser-native `confirm()`/`alert()`/`prompt()` in the app (they
+block the whole tab and look like OS chrome, not this app) is now a real
+in-app modal, styled consistently with every other dialog already in this
+codebase (`ScheduleInterviewModal` etc.).
+
+New `apps/web/src/lib/dialog-context.tsx` — a `DialogProvider` (same
+context-provider pattern as `AuthProvider`/`SavedJobsProvider`) mounted
+once in the root layout, so it's available on every page without each
+portal needing its own copy. Exposes one hook, `useDialog()`, with three
+Promise-based functions mirroring the native APIs' blocking call shape:
+- `confirmDialog(message, { danger?, confirmLabel?, cancelLabel?, title? })
+  → Promise<boolean>` — replaces `confirm()`. `danger: true` styles the
+  confirm button `.btn-danger` instead of `.btn-primary` for destructive
+  actions (delete/withdraw/cancel).
+- `alertDialog(message, { okLabel?, title? }) → Promise<void>` — replaces
+  `alert()`.
+- `promptDialog(message, defaultValue?, { required?, placeholder?, ... })
+  → Promise<string | null>` — replaces `prompt()`; `required: true` blocks
+  submission on an empty value instead of silently accepting it, which
+  bare `prompt()` never did.
+
+Deliberately named with a `Dialog` suffix throughout (`confirmDialog`, not
+`confirm`) rather than shadowing the native globals — several call sites
+(e.g. `dashboard/interviews/page.tsx`'s slot-confirmation handler) already
+have their own local function or variable named exactly `confirm`.
+
+**Every call site replaced** (8 files): `admin/career-advice/page.tsx` and
+`admin/categories/page.tsx` (delete confirmations), `company/interviews
+/page.tsx` (cancel-proposal confirmation), `company/pipeline/page.tsx`
+(the `alert()` on a failed stage move, and the rejection-reason `prompt()`
+— `onDragEnd` had to become `async` for this one, since dnd-kit's callback
+was previously synchronous), `dashboard/applications/page.tsx` (withdraw
+confirmation), `dashboard/interviews/page.tsx` (decline/cancel
+confirmations — both previously used `window.confirm` explicitly to dodge
+the local `confirm` function, now use `confirmDialog` instead so there's
+no ambiguity either way), `components/BlogEditor.tsx` (image-upload-
+failed alert and the insert-link `window.prompt`), and
+`components/CompanyReviews.tsx` (delete-own-review confirmation).
+
+**Verified**: web app typechecks clean; `next build` succeeds; confirmed
+via grep across the entire `apps/web/src` tree that no `confirm(`,
+`alert(`, `prompt(`, or their `window.`-prefixed forms remain anywhere
+outside `dialog-context.tsx` itself; smoke-tested all 7 affected pages
+render (200, no error markers) with the `DialogProvider` mounted globally.
+**Not verified**: the actual modal appearing/behaving correctly on click
+in a real browser — this is a pure client-interaction feature (Promise
+resolves on a button click) that can't be exercised via HTTP requests, and
+no browser automation tool is available in this environment.
+
+**To revert**: delete `lib/dialog-context.tsx`, remove `DialogProvider`
+from `app/layout.tsx`, and restore each call site's native
+`confirm()`/`alert()`/`prompt()` call (reverting `onDragEnd` in
+`company/pipeline/page.tsx` back to a synchronous function too).
+
+---
+
 ## 2026-08-31 — Seekers can now cancel an interview themselves
 
 Job seekers previously had no way to back out of an interview — only

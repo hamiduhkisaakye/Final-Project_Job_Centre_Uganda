@@ -7,6 +7,7 @@ import { DndContext, PointerSensor, useDroppable, useSensor, useSensors, type Dr
 import { SortableContext, arrayMove, useSortable, verticalListSortingStrategy } from '@dnd-kit/sortable';
 import { CSS } from '@dnd-kit/utilities';
 import { useApi } from '@/lib/auth-context';
+import { useDialog } from '@/lib/dialog-context';
 import CompanyLogo from '@/components/CompanyLogo';
 import type { Application, ApplicationStage, Conversation, Interview } from '@/lib/types';
 
@@ -152,6 +153,7 @@ function ListRow({ a, interview, busy, onWithdraw, onMessage }: {
 
 export default function ApplicationsBoardPage() {
   const api = useApi();
+  const { confirmDialog } = useDialog();
   const router = useRouter();
   const [applications, setApplications] = useState<Application[]>([]);
   const [interviews, setInterviews] = useState<Interview[]>([]);
@@ -192,7 +194,7 @@ export default function ApplicationsBoardPage() {
   useEffect(load, []); // eslint-disable-line react-hooks/exhaustive-deps
 
   async function withdraw(a: Application) {
-    if (!confirm(`Withdraw your application for ${a.job?.title}? This cannot be undone.`)) return;
+    if (!(await confirmDialog(`Withdraw your application for ${a.job?.title}? This cannot be undone.`, { danger: true, confirmLabel: 'Withdraw' }))) return;
     setBusyId(a.id);
     try {
       await api(`/applications/${a.id}/withdraw`, { method: 'PATCH' });

@@ -4,6 +4,7 @@ import { useEffect, useMemo, useState } from 'react';
 import Link from 'next/link';
 import { Sparkles, Video } from 'lucide-react';
 import { useAuth, useApi } from '@/lib/auth-context';
+import { useDialog } from '@/lib/dialog-context';
 import { ApiError, downloadFile } from '@/lib/api';
 import CompanyLogo from '@/components/CompanyLogo';
 import InterviewCalendar from '@/components/InterviewCalendar';
@@ -88,6 +89,7 @@ function PrepPanel({ interview }: { interview: Interview }) {
 
 function ProposedCard({ interview, onConfirmed, onCancelled }: { interview: Interview; onConfirmed: () => void; onCancelled: () => void }) {
   const api = useApi();
+  const { confirmDialog } = useDialog();
   const [selected, setSelected] = useState<string | null>(interview.slots?.[0]?.id ?? null);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -122,7 +124,7 @@ function ProposedCard({ interview, onConfirmed, onCancelled }: { interview: Inte
   }
 
   async function declineInterview() {
-    if (!window.confirm(`Decline this interview with ${job?.company?.name || 'this company'}? This cannot be undone.`)) return;
+    if (!(await confirmDialog(`Decline this interview with ${job?.company?.name || 'this company'}? This cannot be undone.`, { danger: true, confirmLabel: 'Decline' }))) return;
     setBusy(true);
     setError(null);
     try {
@@ -171,6 +173,7 @@ function ProposedCard({ interview, onConfirmed, onCancelled }: { interview: Inte
 
 function UpcomingCard({ interview, accessToken, onCancelled }: { interview: Interview; accessToken: string | null; onCancelled: () => void }) {
   const api = useApi();
+  const { confirmDialog } = useDialog();
   const [showPrep, setShowPrep] = useState(false);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -180,7 +183,7 @@ function UpcomingCard({ interview, accessToken, onCancelled }: { interview: Inte
   const openLabel = scheduledAt ? timeUntilLabel(scheduledAt) : null;
 
   async function cancelInterview() {
-    if (!window.confirm(`Cancel your interview with ${job?.company?.name || 'this company'}? This cannot be undone.`)) return;
+    if (!(await confirmDialog(`Cancel your interview with ${job?.company?.name || 'this company'}? This cannot be undone.`, { danger: true, confirmLabel: 'Cancel interview' }))) return;
     setBusy(true);
     setError(null);
     try {
