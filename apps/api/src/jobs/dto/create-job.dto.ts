@@ -1,5 +1,26 @@
-import { IsArray, IsBoolean, IsDateString, IsEnum, IsInt, IsOptional, IsString, Min } from 'class-validator';
+import { ArrayMaxSize, IsArray, IsBoolean, IsDateString, IsEnum, IsIn, IsInt, IsOptional, IsString, Min, ValidateNested } from 'class-validator';
+import { Type } from 'class-transformer';
 import { EmploymentType } from '@prisma/client';
+
+export class ScreeningQuestionDto {
+  @IsOptional()
+  @IsString()
+  id?: string;
+
+  @IsString()
+  text: string;
+
+  @IsIn(['YES_NO', 'SHORT_TEXT'])
+  type: 'YES_NO' | 'SHORT_TEXT';
+
+  @IsOptional()
+  @IsBoolean()
+  knockout?: boolean;
+
+  @IsOptional()
+  @IsIn(['YES', 'NO'])
+  requiredAnswer?: 'YES' | 'NO';
+}
 
 export class CreateJobDto {
   @IsString()
@@ -68,4 +89,19 @@ export class CreateJobDto {
   @IsOptional()
   @IsDateString()
   expiresAt?: string;
+
+  @IsOptional()
+  @IsBoolean()
+  requireVideoResume?: boolean;
+
+  // Capped at 3 — enforced here for a quick 400 on an oversized payload,
+  // and again in jobs.service.ts#assertScreeningQuestions for the
+  // knockout/requiredAnswer shape checks the class-validator decorators
+  // above can't express (requiredAnswer only makes sense for YES_NO).
+  @IsOptional()
+  @IsArray()
+  @ArrayMaxSize(3)
+  @ValidateNested({ each: true })
+  @Type(() => ScreeningQuestionDto)
+  screeningQuestions?: ScreeningQuestionDto[];
 }

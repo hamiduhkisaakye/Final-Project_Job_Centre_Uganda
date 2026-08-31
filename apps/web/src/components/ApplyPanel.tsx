@@ -33,6 +33,7 @@ export default function ApplyPanel({ job }: { job: Job }) {
   const [error, setError] = useState<string | null>(null);
   const [assessmentPassed, setAssessmentPassed] = useState(false);
   const [showAssessment, setShowAssessment] = useState(false);
+  const [screeningAnswers, setScreeningAnswers] = useState<Record<string, string>>({});
   const panelRef = useRef<HTMLDivElement>(null);
   // The primary Apply now / Save job buttons live in the job header (see
   // apps/web/src/app/jobs/[slug]/page.tsx's #job-header-actions div) so
@@ -63,11 +64,21 @@ export default function ApplyPanel({ job }: { job: Job }) {
       .catch(() => undefined);
   }, [user, job.assessmentId]); // eslint-disable-line react-hooks/exhaustive-deps
 
+  const unansweredQuestion = job.screeningQuestions.find((q) => !screeningAnswers[q.id]?.trim());
+  const needsVideoResume = job.requireVideoResume && !user?.seekerProfile?.videoResumeUrl;
+
   async function submitApplication() {
     setBusy(true);
     setError(null);
     try {
-      await api('/applications', { method: 'POST', body: { jobId: job.id, coverLetter } });
+      await api('/applications', {
+        method: 'POST',
+        body: {
+          jobId: job.id,
+          coverLetter,
+          screeningAnswers: job.screeningQuestions.map((q) => ({ questionId: q.id, answer: screeningAnswers[q.id] })),
+        },
+      });
       setApplied(true);
       setShowForm(false);
     } catch (err) {
@@ -97,6 +108,7 @@ export default function ApplyPanel({ job }: { job: Job }) {
     if (!user) return router.push(`/login?next=/jobs/${job.slug}`);
     panelRef.current?.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
     if (user.role !== 'JOB_SEEKER') return setError('Only job seeker accounts can apply');
+    if (needsVideoResume) return setError('This role requires a video resume — add one to your profile before applying.');
     if (job.assessmentId && !assessmentPassed) return setShowAssessment(true);
     setShowForm(true);
   }
@@ -125,12 +137,41 @@ export default function ApplyPanel({ job }: { job: Job }) {
                 placeholder="Tell them why you're a good fit…"
               />
             </div>
+            {job.screeningQuestions.length > 0 && (
+              <div className="flex flex-col gap-3 border-t border-ground pt-3">
+                {job.screeningQuestions.map((q) => (
+                  <div key={q.id}>
+                    <label className="label">{q.text}</label>
+                    {q.type === 'YES_NO' ? (
+                      <div className="flex gap-2">
+                        {(['YES', 'NO'] as const).map((opt) => (
+                          <button
+                            key={opt}
+                            type="button"
+                            onClick={() => setScreeningAnswers((s) => ({ ...s, [q.id]: opt }))}
+                            className={`flex-1 h-9 rounded border text-sm font-semibold transition-colors ${screeningAnswers[q.id] === opt ? 'border-primary bg-ground text-primary' : 'border-border text-muted'}`}
+                          >
+                            {opt === 'YES' ? 'Yes' : 'No'}
+                          </button>
+                        ))}
+                      </div>
+                    ) : (
+                      <input
+                        className="input"
+                        value={screeningAnswers[q.id] || ''}
+                        onChange={(e) => setScreeningAnswers((s) => ({ ...s, [q.id]: e.target.value }))}
+                      />
+                    )}
+                  </div>
+                ))}
+              </div>
+            )}
             {error && <p className="text-sm text-danger">{error}</p>}
             <div className="flex gap-2">
               <button className="btn-secondary flex-1" onClick={() => setShowForm(false)} disabled={busy}>
                 Cancel
               </button>
-              <button className="btn-primary flex-1" onClick={submitApplication} disabled={busy}>
+              <button className="btn-primary flex-1" onClick={submitApplication} disabled={busy || !!unansweredQuestion}>
                 {busy ? 'Sending…' : 'Submit application'}
               </button>
             </div>
@@ -142,6 +183,11 @@ export default function ApplyPanel({ job }: { job: Job }) {
             )}
             {job.assessmentId && assessmentPassed && (
               <p className="text-xs text-success text-center">✓ You&apos;ve passed the required assessment for this role.</p>
+            )}
+            {needsVideoResume && (
+              <p className="text-xs text-muted text-center">
+                🎥 This role requires a video resume — <button onClick={() => router.push('/dashboard/profile')} className="text-primary font-semibold underline">add one to your profile</button>.
+              </p>
             )}
             {(!user || user.role === 'JOB_SEEKER') && (
               <button className="btn-secondary w-full" onClick={messageCompany}>

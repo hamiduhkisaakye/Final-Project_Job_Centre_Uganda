@@ -129,6 +129,12 @@ enum ReportStatus {
   RESOLVED
 }
 
+enum SalaryVerificationStatus {
+  PENDING
+  APPROVED
+  REJECTED
+}
+
 model Conversation {
   id            String    @id @default(uuid())
   companyId     String
@@ -413,6 +419,7 @@ model User {
   companyReviews      CompanyReview[]
   reportsFiled        ConversationReport[] @relation("ReportReporter")
   reportsResolved     ConversationReport[] @relation("ReportResolver")
+  salaryVerificationsReviewed SalaryVerificationRequest[]
 
   @@index([role, status])
 }
@@ -493,6 +500,7 @@ model Company {
   assessments   Assessment[]
   follows       CompanyFollow[]
   reviews       CompanyReview[]
+  salaryVerificationRequests SalaryVerificationRequest[]
 
   @@index([verificationStatus])
 }
@@ -562,11 +570,26 @@ model Job {
   salaryPeriod      String         @default("month")
   salaryDisclosed   Boolean        @default(false)
   salaryVerifiedAt  DateTime?
+  // Set only on admin approval of a SalaryVerificationRequest — null while
+  // unverified/pending, or once a past approval lapses. The badge shown on
+  // the job (and in the post-job wizard) reads salaryVerifiedAt/expiresAt
+  // together rather than a separate boolean.
+  salaryVerificationExpiresAt DateTime?
   skills            Json           @default("[]")
   // Optional — when set, an applicant must have a passing AssessmentAttempt
   // for this assessment before they can apply (see
   // applications.service.ts#apply).
   assessmentId      String?
+  // Gates applying on having a SeekerProfile.videoResumeUrl — see
+  // applications.service.ts#apply.
+  requireVideoResume Boolean       @default(false)
+  // [{ id, text, type: 'YES_NO' | 'SHORT_TEXT', knockout, requiredAnswer? }]
+  // Capped at 3 (enforced in jobs.service.ts#assertScreeningQuestions).
+  // knockout only applies to YES_NO questions — an application whose answer
+  // doesn't match requiredAnswer is rejected before it's created (see
+  // applications.service.ts#apply) rather than silently accepted and
+  // auto-moved later, so the candidate finds out immediately.
+  screeningQuestions Json          @default("[]")
   status            JobStatus      @default(DRAFT)
   publishedAt       DateTime?
   expiresAt         DateTime?
@@ -585,9 +608,42 @@ model Job {
   savedBy       SavedJob[]
   conversations Conversation[]
   assessment    Assessment?    @relation(fields: [assessmentId], references: [id], onDelete: SetNull)
+  salaryVerificationRequests SalaryVerificationRequest[]
 
   @@index([status, publishedAt])
   @@index([category])
+}
+
+// A company's submission of payroll evidence to back a job's disclosed
+// salary range, reviewed by an admin — separate from the plain
+// Job.salaryVerifiedAt flag this app already had, which had no expiry or
+// evidence trail. comparableHires is computed at submission time from real
+// HIRED applications at this company in the same category (see
+// salary-verifications.service.ts#submit) — never a fabricated number.
+model SalaryVerificationRequest {
+  id              String                    @id @default(uuid())
+  jobId           String
+  companyId       String
+  evidenceUrl     String
+  evidenceName    String
+  note            String?
+  comparableHires Int
+  status          SalaryVerificationStatus  @default(PENDING)
+  rejectionReason String?
+  reviewedById    String?
+  reviewedAt      DateTime?
+  // Set on approval — one year out. The job's salaryVerifiedAt/
+  // salaryVerificationExpiresAt are copied from here so display never needs
+  // to join back to this table.
+  expiresAt       DateTime?
+  createdAt       DateTime                  @default(now())
+
+  job        Job     @relation(fields: [jobId], references: [id], onDelete: Cascade)
+  company    Company @relation(fields: [companyId], references: [id], onDelete: Cascade)
+  reviewedBy User?   @relation(fields: [reviewedById], references: [id])
+
+  @@index([status])
+  @@index([jobId])
 }
 
 model Application {
@@ -612,6 +668,9 @@ model Application {
   // feature) sorts after any explicitly ordered ones, falling back to
   // submittedAt — see applications.service.ts#reorder.
   priorityOrder    Int?
+  // [{ questionId, answer }] snapshotted from Job.screeningQuestions at
+  // apply time — see applications.service.ts#apply.
+  screeningAnswers Json             @default("[]")
 
   job        Job                @relation(fields: [jobId], references: [id], onDelete: Cascade)
   seeker     User               @relation(fields: [seekerId], references: [id], onDelete: Cascade)

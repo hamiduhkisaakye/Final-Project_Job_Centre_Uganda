@@ -1,11 +1,12 @@
 import { BadRequestException, Injectable, NotFoundException } from '@nestjs/common';
 import { Prisma } from '@prisma/client';
 import slugify from 'slugify';
+import { randomUUID } from 'crypto';
 import { PrismaService } from '../prisma/prisma.service';
 import { CompaniesService } from '../companies/companies.service';
 import { MatchingService } from '../matching/matching.service';
 import { EmbeddingsService } from '../matching/embeddings.service';
-import { CreateJobDto } from './dto/create-job.dto';
+import { CreateJobDto, ScreeningQuestionDto } from './dto/create-job.dto';
 import { UpdateJobDto } from './dto/update-job.dto';
 
 export interface JobSearchQuery {
@@ -208,12 +209,37 @@ export class JobsService {
     }
   }
 
+  // Cap enforced again here (not just @ArrayMaxSize on the DTO) alongside
+  // shape rules the class-validator decorators can't express: requiredAnswer
+  // only makes sense — and is required — on a knockout YES_NO question.
+  // Assigns a stable id to any question missing one so the frontend can key
+  // off it without round-tripping through a save first.
+  private assertScreeningQuestions(questions: ScreeningQuestionDto[] | undefined): Prisma.InputJsonValue {
+    if (!questions) return [];
+    if (questions.length > 3) throw new BadRequestException('A job can have at most 3 screening questions');
+    return questions.map((q) => {
+      const text = q.text?.trim();
+      if (!text) throw new BadRequestException('Every screening question needs text');
+      const knockout = !!q.knockout;
+      if (knockout && q.type !== 'YES_NO') throw new BadRequestException('Only a Yes/No question can be a knock-out');
+      if (knockout && !q.requiredAnswer) throw new BadRequestException('A knock-out question needs a required answer');
+      return {
+        id: q.id || randomUUID(),
+        text,
+        type: q.type,
+        knockout,
+        requiredAnswer: knockout ? q.requiredAnswer : undefined,
+      };
+    }) as unknown as Prisma.InputJsonValue;
+  }
+
   async create(userId: string, dto: CreateJobDto) {
     const company = await this.companies.myCompany(userId);
     if (company.verificationStatus !== 'VERIFIED' && company.verificationStatus !== 'PENDING') {
       throw new BadRequestException('Your company must be verified before posting jobs');
     }
     await this.assertAssessmentOwnership(dto.assessmentId, company.id);
+    const screeningQuestions = this.assertScreeningQuestions(dto.screeningQuestions);
 
     const baseSlug = slugify(`${dto.title}-${company.name}`, { lower: true, strict: true });
     let slug = baseSlug;
@@ -228,6 +254,7 @@ export class JobsService {
         responsibilities: dto.responsibilities || [],
         requirements: dto.requirements || [],
         skills: dto.skills || [],
+        screeningQuestions,
         expiresAt: dto.expiresAt ? new Date(dto.expiresAt) : undefined,
         companyId: company.id,
         slug,
@@ -245,7 +272,9 @@ export class JobsService {
       throw new BadRequestException(`Cannot edit a job in status ${job.status}`);
     }
     await this.assertAssessmentOwnership(dto.assessmentId, job.companyId);
-    const data: Prisma.JobUpdateInput = { ...dto, expiresAt: dto.expiresAt ? new Date(dto.expiresAt) : undefined };
+    const { screeningQuestions, ...rest } = dto;
+    const data: Prisma.JobUpdateInput = { ...rest, expiresAt: dto.expiresAt ? new Date(dto.expiresAt) : undefined };
+    if (screeningQuestions !== undefined) data.screeningQuestions = this.assertScreeningQuestions(screeningQuestions);
     const updated = await this.prisma.job.update({ where: { id }, data });
     await this.embeddings.embedAndStoreJob(updated.id, updated).catch(() => undefined);
     return updated;

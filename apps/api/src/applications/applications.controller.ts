@@ -1,11 +1,20 @@
 import { Body, Controller, Get, Param, Patch, Post, Query, UseGuards } from '@nestjs/common';
-import { ArrayNotEmpty, IsArray, IsIn, IsOptional, IsString } from 'class-validator';
+import { ArrayNotEmpty, IsArray, IsIn, IsOptional, IsString, ValidateNested } from 'class-validator';
+import { Type } from 'class-transformer';
 import { ApplicationStage } from '@prisma/client';
 import { ApplicationsService } from './applications.service';
 import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard';
 import { RolesGuard } from '../auth/guards/roles.guard';
 import { Roles } from '../auth/decorators/roles.decorator';
 import { CurrentUser, JwtUser } from '../auth/decorators/current-user.decorator';
+
+class ScreeningAnswerDto {
+  @IsString()
+  questionId: string;
+
+  @IsString()
+  answer: string;
+}
 
 class ApplyDto {
   @IsString()
@@ -14,6 +23,12 @@ class ApplyDto {
   @IsOptional()
   @IsString()
   coverLetter?: string;
+
+  @IsOptional()
+  @IsArray()
+  @ValidateNested({ each: true })
+  @Type(() => ScreeningAnswerDto)
+  screeningAnswers?: ScreeningAnswerDto[];
 }
 
 class MoveStageDto {
@@ -43,7 +58,7 @@ export class ApplicationsController {
   @Post()
   @Roles('JOB_SEEKER')
   apply(@CurrentUser() user: JwtUser, @Body() dto: ApplyDto) {
-    return this.applications.apply(user.sub, dto.jobId, dto.coverLetter);
+    return this.applications.apply(user.sub, dto.jobId, dto.coverLetter, dto.screeningAnswers);
   }
 
   @Get()

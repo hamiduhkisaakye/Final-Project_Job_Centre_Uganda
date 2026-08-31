@@ -41,6 +41,33 @@ export interface CompanyReview {
   seeker?: { seekerProfile?: { fullName?: string | null; headline?: string | null; avatarUrl?: string | null } | null };
 }
 
+export interface ScreeningQuestion {
+  id: string;
+  text: string;
+  type: 'YES_NO' | 'SHORT_TEXT';
+  knockout: boolean;
+  requiredAnswer?: 'YES' | 'NO';
+}
+
+export type SalaryVerificationStatus = 'PENDING' | 'APPROVED' | 'REJECTED';
+
+export interface SalaryVerificationRequest {
+  id: string;
+  jobId: string;
+  companyId: string;
+  evidenceUrl: string;
+  evidenceName: string;
+  note?: string | null;
+  comparableHires: number;
+  status: SalaryVerificationStatus;
+  rejectionReason?: string | null;
+  reviewedAt?: string | null;
+  expiresAt?: string | null;
+  createdAt: string;
+  job?: Pick<Job, 'title' | 'salaryMin' | 'salaryMax' | 'salaryCurrency' | 'salaryPeriod'>;
+  company?: Pick<Company, 'name' | 'slug'>;
+}
+
 export interface Job {
   id: string;
   companyId: string;
@@ -59,11 +86,14 @@ export interface Job {
   salaryPeriod: string;
   salaryDisclosed: boolean;
   salaryVerifiedAt?: string | null;
+  salaryVerificationExpiresAt?: string | null;
   skills: string[];
   assessmentId?: string | null;
   // Public shape only — never carries question text/answers. See
   // jobs.service.ts#findBySlug.
   assessment?: { title: string; questionCount: number } | null;
+  requireVideoResume: boolean;
+  screeningQuestions: ScreeningQuestion[];
   status: JobStatus;
   publishedAt?: string | null;
   expiresAt?: string | null;
@@ -155,6 +185,7 @@ export interface Application {
   submittedAt: string;
   stageChangedAt: string;
   priorityOrder?: number | null;
+  screeningAnswers: { questionId: string; answer: string }[];
   job?: Job;
   seeker?: { id: string; email: string; seekerProfile?: SeekerProfile };
 }

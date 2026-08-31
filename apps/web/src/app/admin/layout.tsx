@@ -8,9 +8,9 @@ import PortalSidebar from '@/components/PortalSidebar';
 import NotificationBell from '@/components/NotificationBell';
 import { useAuth, useApi } from '@/lib/auth-context';
 import { currentSectionLabel } from '@/lib/portal-nav';
-import type { ConversationReport } from '@/lib/types';
+import type { ConversationReport, SalaryVerificationRequest } from '@/lib/types';
 
-function buildGroups(openReportCount: number) {
+function buildGroups(openReportCount: number, pendingVerificationCount: number) {
   return [
     { label: 'Overview', items: [{ href: '/admin', label: 'Dashboard' }] },
     {
@@ -18,6 +18,7 @@ function buildGroups(openReportCount: number) {
       items: [
         { href: '/admin/moderation', label: 'Job Queue' },
         { href: '/admin/reports', label: 'Reports', badge: openReportCount },
+        { href: '/admin/salary-verifications', label: 'Salary Verifications', badge: pendingVerificationCount },
       ],
     },
     {
@@ -52,12 +53,14 @@ function Shell({ children }: { children: React.ReactNode }) {
   const pathname = usePathname();
   const [sidebarOpen, setSidebarOpen] = useState(false);
   const [openReportCount, setOpenReportCount] = useState(0);
+  const [pendingVerificationCount, setPendingVerificationCount] = useState(0);
 
   useEffect(() => {
     api<ConversationReport[]>('/admin/reports?status=OPEN').then((r) => setOpenReportCount(r.length)).catch(() => undefined);
+    api<SalaryVerificationRequest[]>('/admin/salary-verifications?status=PENDING').then((r) => setPendingVerificationCount(r.length)).catch(() => undefined);
   }, []); // eslint-disable-line react-hooks/exhaustive-deps
 
-  const groups = buildGroups(openReportCount);
+  const groups = buildGroups(openReportCount, pendingVerificationCount);
   const sectionLabel = currentSectionLabel(pathname, groups.flatMap((g) => g.items), 'Admin Console');
   return (
     <div className="min-h-screen bg-ground">

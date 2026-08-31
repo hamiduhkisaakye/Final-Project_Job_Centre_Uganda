@@ -20,6 +20,7 @@ import { ContactModule } from './contact/contact.module';
 import { CvModule } from './cv/cv.module';
 import { StatsModule } from './stats/stats.module';
 import { CategoriesModule } from './categories/categories.module';
+import { SalaryVerificationsModule } from './salary-verifications/salary-verifications.module';
 
 @Module({
   imports: [
@@ -44,6 +45,7 @@ import { CategoriesModule } from './categories/categories.module';
     CvModule,
     StatsModule,
     CategoriesModule,
+    SalaryVerificationsModule,
   ],
 })
 export class AppModule {}

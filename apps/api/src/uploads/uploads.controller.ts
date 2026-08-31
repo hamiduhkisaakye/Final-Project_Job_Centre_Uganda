@@ -24,7 +24,8 @@ const AVATAR_DIR = path.join(STORAGE_ROOT, 'avatars');
 const VIDEO_DIR = path.join(STORAGE_ROOT, 'videos');
 const BLOG_DIR = path.join(STORAGE_ROOT, 'blog');
 const CHAT_DIR = path.join(STORAGE_ROOT, 'chat');
-for (const dir of [RESUME_DIR, LOGO_DIR, AVATAR_DIR, VIDEO_DIR, BLOG_DIR, CHAT_DIR]) fs.mkdirSync(dir, { recursive: true });
+const EVIDENCE_DIR = path.join(STORAGE_ROOT, 'salary-evidence');
+for (const dir of [RESUME_DIR, LOGO_DIR, AVATAR_DIR, VIDEO_DIR, BLOG_DIR, CHAT_DIR, EVIDENCE_DIR]) fs.mkdirSync(dir, { recursive: true });
 
 // Exported so cv.controller.ts's parse-only upload endpoint reuses the same
 // allow-list instead of duplicating it.
@@ -32,6 +33,7 @@ export const RESUME_TYPES = new Set(['application/pdf', 'application/msword', 'a
 const IMAGE_TYPES = new Set(['image/png', 'image/jpeg', 'image/webp', 'image/gif']);
 const VIDEO_TYPES = new Set(['video/mp4', 'video/webm']);
 const CHAT_ATTACHMENT_TYPES = new Set([...IMAGE_TYPES, ...RESUME_TYPES]);
+const EVIDENCE_TYPES = new Set([...IMAGE_TYPES, 'application/pdf']);
 
 function safeName(originalname: string) {
   return `${Date.now()}-${Math.round(Math.random() * 1e9)}${path.extname(originalname).toLowerCase()}`;
@@ -178,5 +180,26 @@ export class UploadsController {
       type: IMAGE_TYPES.has(file.mimetype) ? 'image' : 'file',
       name: file.originalname,
     };
+  }
+
+  // Payroll/offer-letter evidence attached to a SalaryVerificationRequest —
+  // no row to persist onto yet either (same reasoning as blog-cover/
+  // chat-attachment above), the post-job page holds the returned URL in
+  // state and submits it with the verification request.
+  @Post('salary-evidence')
+  @Roles('COMPANY')
+  @UseInterceptors(
+    FileInterceptor('file', {
+      storage: diskStorage({
+        destination: EVIDENCE_DIR,
+        filename: (_req, file, cb) => cb(null, safeName(file.originalname)),
+      }),
+      limits: { fileSize: 10 * 1024 * 1024 },
+      fileFilter: (_req, file, cb) => cb(null, EVIDENCE_TYPES.has(file.mimetype)),
+    }),
+  )
+  async uploadSalaryEvidence(@UploadedFile() file?: Express.Multer.File) {
+    if (!file) throw new BadRequestException('Attach a PDF or image under 10MB');
+    return { evidenceUrl: `/uploads/salary-evidence/${file.filename}`, evidenceName: file.originalname };
   }
 }

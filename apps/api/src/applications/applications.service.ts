@@ -37,7 +37,12 @@ export class ApplicationsService {
     private notifications: NotificationsService,
   ) {}
 
-  async apply(seekerId: string, jobId: string, coverLetter?: string) {
+  async apply(
+    seekerId: string,
+    jobId: string,
+    coverLetter?: string,
+    screeningAnswers?: { questionId: string; answer: string }[],
+  ) {
     const job = await this.prisma.job.findUnique({ where: { id: jobId } });
     if (!job || job.status !== 'PUBLISHED') throw new NotFoundException('This job is not accepting applications');
 
@@ -61,6 +66,25 @@ export class ApplicationsService {
       assessmentPassed = attempt.passed;
     }
 
+    if (job.requireVideoResume) {
+      const profile = await this.prisma.seekerProfile.findUnique({ where: { userId: seekerId } });
+      if (!profile?.videoResumeUrl) throw new BadRequestException('This role requires a video resume — add one to your profile before applying');
+    }
+
+    // Every screening question must be answered; a knock-out question whose
+    // answer doesn't match the required one blocks the application from
+    // being created at all, same as the assessment gate above, so the
+    // candidate finds out immediately rather than ending up silently
+    // rejected later.
+    const questions = (job.screeningQuestions as { id: string; text: string; type: string; knockout: boolean; requiredAnswer?: string }[]) || [];
+    for (const q of questions) {
+      const given = screeningAnswers?.find((a) => a.questionId === q.id);
+      if (!given?.answer) throw new BadRequestException(`Answer the required question: ${q.text}`);
+      if (q.knockout && given.answer !== q.requiredAnswer) {
+        throw new BadRequestException(`This role requires: ${q.text} — ${q.requiredAnswer === 'YES' ? 'Yes' : 'No'}`);
+      }
+    }
+
     const [profile, similarity] = await Promise.all([
       this.prisma.seekerProfile.findUnique({ where: { userId: seekerId } }),
       this.embeddings.similarity(seekerId, jobId),
@@ -80,7 +104,7 @@ export class ApplicationsService {
 
     const application = await this.prisma.$transaction(async (tx) => {
       const app = await tx.application.create({
-        data: { jobId, seekerId, coverLetter, matchScore: score, assessmentScore, assessmentPassed },
+        data: { jobId, seekerId, coverLetter, matchScore: score, assessmentScore, assessmentPassed, screeningAnswers: screeningAnswers || [] },
       });
       await tx.applicationEvent.create({
         data: { applicationId: app.id, actorId: seekerId, type: 'CREATED', toStage: 'APPLIED' },

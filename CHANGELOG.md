@@ -11,6 +11,111 @@ changes, revert by restoring the described prior structure.
 
 ---
 
+## 2026-08-31 — Post-a-Job rebuild: autosave, verified-salary evidence, screening questions, video-resume gate
+
+Requested from a mockup screenshot of the salary/screening step. Asked
+clarifying questions first (per explicit instruction) on four genuinely
+ambiguous scope items — autosave, salary-evidence depth, assessment-picker
+"platform library" claim, and screening questions — and built to the
+answers given: real autosave, the full evidence-review workflow, a
+restyled picker with **no** invented library/usage stats (kept to this
+session's established never-fabricate-stats rule), and knock-out screening
+questions capped at 3 flat per job (no plan-tier gating — treated as a
+separate monetization decision, not guessed at).
+
+**Schema** (`apps/api/prisma/schema.prisma`,
+migration `20260831090000_post_job_screening_and_salary_verification`):
+- `Job.requireVideoResume Boolean`, `Job.screeningQuestions Json` (capped
+  at 3, `{id, text, type: YES_NO|SHORT_TEXT, knockout, requiredAnswer?}`),
+  `Job.salaryVerificationExpiresAt DateTime?` (pairs with the pre-existing
+  `salaryVerifiedAt`, which previously had no expiry/evidence concept).
+- `Application.screeningAnswers Json` — snapshotted `{questionId, answer}[]`
+  at apply time.
+- New `SalaryVerificationRequest` model + `SalaryVerificationStatus` enum
+  (`PENDING`/`APPROVED`/`REJECTED`) — a company's payroll/offer-letter
+  evidence upload, admin-reviewed. `comparableHires` is computed at
+  submission time from real `HIRED` applications at that company in the
+  same job category (`prisma.application.count`) — never a fabricated
+  number. Approval sets a **1-year** `expiresAt` (a fixed business rule)
+  and copies `salaryVerifiedAt`/`salaryVerificationExpiresAt` onto the Job.
+
+**Backend**:
+- `jobs.service.ts` — `assertScreeningQuestions()` enforces the 3-question
+  cap and that only a `YES_NO` question can carry `knockout`/`requiredAnswer`.
+- New `salary-verifications` module (service/controller/DTOs) —
+  `POST`/`GET /company/jobs/:jobId/salary-verification`,
+  `GET /admin/salary-verifications`,
+  `POST /admin/salary-verifications/:id/approve|reject`.
+- `uploads.controller.ts` — new `POST /uploads/salary-evidence` (COMPANY,
+  PDF/image, 10MB), same disk-storage pattern as every other upload
+  endpoint here.
+- `applications.service.ts#apply` — two new pre-creation gates, same
+  "block with 400 before the row exists" shape as the pre-existing
+  assessment gate: (1) `job.requireVideoResume` requires
+  `SeekerProfile.videoResumeUrl`; (2) every screening question must be
+  answered, and a knock-out `YES_NO` question whose answer doesn't match
+  `requiredAnswer` blocks the application entirely (the candidate finds
+  out immediately, never silently auto-rejected later).
+
+**Frontend**:
+- `apps/web/src/app/company/post-job/page.tsx` — rewritten. Debounced
+  (1.5s) autosave: creates the job as `DRAFT` on the first valid edit
+  (title + location), then `PATCH`es on every change after; "Save as
+  draft"/"Submit for review" now just flush the same `persist()` path
+  instead of re-POSTing. A save-status line ("Draft saved N seconds ago" /
+  "Saving…" / "Could not save…") sits above the step indicator. Salary
+  step gained: currency/period dropdowns (the fields already existed on
+  `Job` but the form never exposed them, so every job silently got the UGX/
+  month defaults regardless of intent), a real toggle switch for
+  "salaryDisclosed" and the new "require a video resume" flag, a Verified
+  Salary panel (upload evidence → pending/approved/rejected states, "View
+  evidence" link, real `comparableHires` count), the assessment picker
+  restyled from a `<select>` into cards (title/description/question-count/
+  pass-score — all real, no "platform library" invented), and a
+  screening-question builder (add/reorder-via-buttons/remove, capped at 3,
+  knock-out toggle + required-answer select for Yes/No questions).
+- `components/ApplyPanel.tsx` — blocks Apply with an inline note + link to
+  the profile page when `job.requireVideoResume` and the seeker has no
+  `videoResumeUrl`; the apply form now renders each screening question
+  (Yes/No buttons or a text input) and disables submit until all are
+  answered, submitting them as `screeningAnswers`.
+- New `apps/web/src/app/admin/salary-verifications/page.tsx` — same
+  Open/Resolved-tab pattern as `admin/reports/page.tsx`, Approve/Reject
+  (reject via `promptDialog` for a reason) per pending request.
+  `admin/layout.tsx` gained a "Salary Verifications" nav item with a
+  pending-count badge, same pattern as "Reports".
+- `lib/types.ts` — `Job` gained `requireVideoResume`, `screeningQuestions`,
+  `salaryVerificationExpiresAt`; new `ScreeningQuestion`,
+  `SalaryVerificationRequest`, `SalaryVerificationStatus`; `Application`
+  gained `screeningAnswers`.
+
+**Verified**: clean `tsc --noEmit` + `nest build` (api) and `tsc --noEmit`
++ `next build` (web, all 35 routes including the two new pages compiled).
+Live REST smoke test end-to-end: created a job with a knock-out screening
+question and `requireVideoResume` as the company → `PATCH`ed it (autosave
+path) → uploaded evidence and submitted salary verification (real
+`comparableHires` count came back, not zero/fabricated) → approved both
+the job (moderation) and the verification as admin, confirmed the job's
+`salaryVerifiedAt`/`salaryVerificationExpiresAt` were set (1 year out) →
+as a seeker, confirmed applying with the knock-out question answered "NO"
+was blocked with a 400 naming the question, and answering "YES" succeeded
+and stored `screeningAnswers` on the resulting application. Test job/
+verification/application rows deleted after.
+
+To revert: restore `apps/web/src/app/company/post-job/page.tsx`,
+`apps/web/src/components/ApplyPanel.tsx`, `apps/web/src/app/admin/layout.tsx`
+and `apps/web/src/lib/types.ts` to their prior versions; delete
+`apps/web/src/app/admin/salary-verifications/`,
+`apps/api/src/salary-verifications/`; remove the
+`SalaryVerificationsModule` import/registration in `app.module.ts`; revert
+`jobs.service.ts`, `jobs/dto/create-job.dto.ts`,
+`applications.service.ts`, `applications.controller.ts`,
+`uploads.controller.ts`; drop the `SalaryVerificationRequest` table/
+`SalaryVerificationStatus` enum and the `Job`/`Application` columns added
+in migration `20260831090000_post_job_screening_and_salary_verification`.
+
+---
+
 ## 2026-08-31 — Replaced every native confirm/alert/prompt with an in-app dialog
 
 Every browser-native `confirm()`/`alert()`/`prompt()` in the app (they
